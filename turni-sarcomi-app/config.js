@@ -4,6 +4,6 @@
    - Publishable (o "anon") key
    Sono valori pensati per stare in un'app pubblica: la protezione dei dati è nell'archivio, non qui. */
 window.APP_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: ""
+  SUPABASE_URL: "https://aqgfflenxrroxqpkbkeo.supabase.co/rest/v1/",
+  SUPABASE_ANON_KEY: "sb_publishable_IExpsVyQvBMihMHmtzhalg_pp0HPfZ_"
 };
