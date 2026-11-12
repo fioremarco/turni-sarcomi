@@ -1,7 +1,7 @@
 /* Turni Sarcomi — funzionamento offline di base.
    I file dell'app si aprono subito dalla memoria e si aggiornano in sottofondo.
    I dati (turni, richieste) NON passano da qui: vengono sempre chiesti all'archivio online. */
-var CACHE = 'turni-shell-v12';
+var CACHE = 'turni-shell-v13';
 var SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/logo.jpg'];
 
 self.addEventListener('install', function(e){

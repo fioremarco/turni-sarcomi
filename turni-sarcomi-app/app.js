@@ -225,7 +225,7 @@ function refresh(rerender){
     sb.from('app_state').select('key,value'),
     sb.rpc('directory'),
     sb.from('approved_items').select('staff_id,day,kind,hours,proposal_id').gte('day', jan1).order('day'),
-    sb.from('proposals').select('id,staff_id,items,note,status,reply,created_at,decided_at,entered_by,staff(name,category)').order('created_at',{ascending:false}).limit(300),
+    sb.from('proposals').select('id,staff_id,items,note,status,reply,created_at,decided_at,entered_by,staff:staff_id(name,category)').order('created_at',{ascending:false}).limit(300),
     sb.rpc('whoami')
   ];
   var iStaff = -1, iOr = -1;
@@ -1045,7 +1045,7 @@ function bindOr(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.16';
+var APP_VERSION = '2026.11.17';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
