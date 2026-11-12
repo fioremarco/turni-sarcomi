@@ -3,7 +3,7 @@ const DAYS = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','
 const CATS = [
   {id:'chirurghi', label:'Chirurghi'},
   {id:'specializzandi', label:'Specializzandi'},
-  {id:'datamanager', label:'Data Manager / RN'}
+  {id:'datamanager', label:'Personale di supporto'}
 ];
 const DEFAULT_STAFF = [
   {id:'gronchi', name:'Gronchi', cat:'chirurghi', rot:'', manualTmsBacklog:0},
@@ -96,7 +96,7 @@ let paletteFilter = 'tutti';
 let openGridColorPicker = null; // {staffId, day, idx} del turno in griglia con il selettore colore aperto, o null
 let dragSource = null; // {staffId, day, idx} del turno attualmente trascinato (solo se proviene dalla griglia), o null se dalla libreria
 document.addEventListener('dragend', ()=>{ dragSource = null; });
-const CAT_SHORT = {chirurghi:'Chir', specializzandi:'Spec', datamanager:'DM'};
+const CAT_SHORT = {chirurghi:'Chir', specializzandi:'Spec', datamanager:'Sup'};
 function catLabelFor(categories){
   if(!categories || categories.length===0 || categories.length>=CATS.length) return 'Tutti';
   return categories.map(c=>CAT_SHORT[c]||c).join('+');
@@ -323,7 +323,6 @@ async function loadWeek(){
   } else {
     entries = {};
     staff.forEach(s=> entries[s.id] = [[],[],[],[],[],[],[]]);
-    applyRulesToEntries(true);
     roleAssignments = {};
     roleSchedules = {};
   }
@@ -399,7 +398,7 @@ function renderGrid(){
   const table = document.createElement('table');
   const thead = document.createElement('thead');
   thead.innerHTML = '<tr><th class="th-name" style="text-align:left; padding-left:12px;">Nome</th><th class="th-badge">Info</th>' +
-    DAYS.map((d,i)=>`<th>${d} ${fmt(addDays(currentMonday,i))}</th>`).join('') + '</tr>';
+    DAYS.map((d,i)=>`<th class="${addDays(currentMonday,i).toDateString()===new Date().toDateString()?'today':''}">${d} ${fmt(addDays(currentMonday,i))}</th>`).join('') + '</tr>';
   table.appendChild(thead);
   const tbody = document.createElement('tbody');
 
@@ -422,7 +421,7 @@ function renderGrid(){
 
       for(let d=0; d<7; d++){
         const td = document.createElement('td');
-        td.className = 'cell';
+        td.className = 'cell' + (addDays(currentMonday,d).toDateString()===new Date().toDateString() ? ' today' : '');
         td.dataset.staff = s.id;
         td.dataset.day = d;
         renderCellContent(td, s.id, d);
@@ -449,6 +448,7 @@ function renderGrid(){
   table.appendChild(tbody);
   panel.appendChild(table);
   app.appendChild(panel);
+  if(window.__orPaint) window.__orPaint();
 }
 
 function dropInsertIndexForPill(pillEl, idx, clientY){
@@ -483,7 +483,8 @@ function handleCellDrop(targetStaffId, targetDay, insertBeforeIdx, e){
   saveWeek();
   dragSource = null;
 }
-function renderCellContent(td, staffId, day){
+function renderCellContent(td, staffId, day){ renderCellContent0(td, staffId, day); if(window.__orTag) window.__orTag(td, staffId, day); }
+function renderCellContent0(td, staffId, day){
   const lines = (entries[staffId] && entries[staffId][day]) || [];
   if(lines.length===0){ td.innerHTML = ''; return; }
   td.innerHTML = lines.map((l,idx)=>{
@@ -859,7 +860,8 @@ async function exportBackupExcel(){
 document.getElementById('btnApplyRules').addEventListener('click', ()=>{
   const changed = applyRulesToEntries(false);
   renderGrid();
-  if(!changed) showStatus();
+  const wk = `${fmt(currentMonday)} — ${fmt(addDays(currentMonday,6))}`;
+  setTimeout(()=>showStatusMsg(changed ? 'Regole applicate solo alla settimana '+wk : 'Nessuna regola da aggiungere: nella settimana '+wk+' ci sono già tutte'), 450);
 });
 
 // ---------- Staff manager ----------
@@ -942,6 +944,7 @@ function renderStaffList(){
       if(!s) return;
       s.removed = true;
       await saveKey('staff', staff);
+      if(window.__adminStaffActive) window.__adminStaffActive(s.id, false);
       absenceCounters = await computeAbsenceCounters();
       renderStaffList(); renderGrid();
     });
@@ -952,6 +955,7 @@ function renderStaffList(){
       if(!s) return;
       s.removed = false;
       await saveKey('staff', staff);
+      if(window.__adminStaffActive) window.__adminStaffActive(s.id, true);
       absenceCounters = await computeAbsenceCounters();
       renderStaffList(); renderGrid();
     });
@@ -1019,7 +1023,7 @@ function openRulesModal(){
     <div class="modal">
       <button class="modal-close" id="closeRules">✕</button>
       <h2>Regole ricorrenti</h2>
-      <p class="hint">Definisci turni fissi (es. "Radaelli · Giovedì · Tumor Board") scegliendo dalla libreria turni. Usa "Applica regole alla settimana" nella barra in alto per inserirle nella settimana visualizzata — non sovrascrivono mai un turno già inserito.</p>
+      <p class="hint">Definisci turni fissi (es. "Radaelli · Giovedì · Tumor Board") scegliendo dalla libreria turni. Le regole non vengono inserite da sole: premi "Applica regole a questa settimana" nella barra in alto e valgono solo per la settimana che stai guardando (le altre non cambiano). Non sovrascrivono mai un turno già inserito.</p>
       <div class="rule-form">
         <select id="ruleStaff">${staff.filter(s=>!s.removed).map(s=>`<option value="${s.id}">${s.name}</option>`).join('')}</select>
         <select id="ruleDay">${DAYS.map((d,i)=>`<option value="${i}">${d}</option>`).join('')}</select>
@@ -1500,8 +1504,8 @@ function mondayFromKey(iso){
   return new Date(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
 }
 function dayIndexOf(d){ return (d.getDay()+6)%7; }
-const KINDS = {"ass": {"s": "Giornata di assenza", "l": "Giornata di assenza", "t": "Ferie", "cnt": 2}, "per": {"s": "Permesso", "l": "Permesso (con orario)", "t": "Permesso", "hr": "req", "cnt": 2}, "lez": {"s": "Lezione", "l": "Lezione", "t": "Lezione", "hr": "opt", "cnt": 1}, "cong": {"s": "Congresso", "l": "Congresso", "t": "Congresso", "hr": "opt", "cnt": 1}, "pres": {"s": "Giornata in presenza", "l": "Giornata in presenza", "t": "Presenza"}, "sw": {"s": "Giornata in smart working", "l": "Giornata in smart working", "t": "Smart working"}};
-const CAT_KINDS = {"chirurghi": ["ass", "per"], "specializzandi": ["ass", "lez", "cong"], "datamanager": ["pres", "sw", "ass"]};
+const KINDS = {"ass": {"s": "Ferie", "l": "Ferie", "t": "Ferie", "cnt": 2}, "per": {"s": "Permesso", "l": "Permesso", "t": "Permesso", "hr": "opt", "cnt": 2}, "lez": {"s": "Lezione", "l": "Lezione", "t": "Lezione", "hr": "opt", "cnt": 1}, "cong": {"s": "Congresso / meeting", "l": "Congresso / meeting", "t": "Congresso", "hr": "opt", "cnt": 1}, "pres": {"s": "Presente", "l": "Presente", "t": "Presente", "hr": "opt"}, "sw": {"s": "Smart working", "l": "Smart working", "t": "Smart-Working", "hr": "opt"}, "abs": {"s": "Assente", "l": "Assente", "t": "Assente", "hr": "opt"}};
+const CAT_KINDS = {"chirurghi": ["ass", "per", "lez", "cong"], "specializzandi": ["ass", "per", "lez", "cong"], "datamanager": ["pres", "sw", "abs"]};
 function itemText(it){ const k = KINDS[it.k]; return k ? k.t + (it.h ? ' '+it.h : '') : String(it.k); }
 // Elenco giorni di una richiesta. Le richieste nel vecchio formato (periodo + tipo) vengono convertite.
 function reqItems(r){
@@ -1568,7 +1572,7 @@ async function mutateWeek(mon, fn){
   let ent, ra = {}, rs = {};
   if(data && data.__v===2){ ent = normalizeEntries(data.entries||{}); ra = data.roleAssignments||{}; rs = data.roleSchedules||{}; }
   else if(data){ ent = normalizeEntries(data); }
-  else { ent = {}; staff.forEach(s=>{ if(!s.removed) ent[s.id] = [[],[],[],[],[],[],[]]; }); applyRulesTo(ent, mon); }
+  else { ent = {}; staff.forEach(s=>{ if(!s.removed) ent[s.id] = [[],[],[],[],[],[],[]]; }); }   // le regole ricorrenti si applicano solo col pulsante, mai da sole
   const ch = fn(ent);
   if(ch) await saveKey(key, {__v:2, entries:ent, roleAssignments:ra, roleSchedules:rs});
   return ch;
@@ -1685,9 +1689,89 @@ async function mergeRemote(snap){
   remoteBusy = false;
   if(remoteQueue){ const q = remoteQueue; remoteQueue = null; mergeRemote(q); }
 }
+
+// ---- Sala Op: indicazioni del Master SalaOp (sola lettura: le vede chi prepara i turni)
+let orRows = [], orSig = '', orMap = {};
+function isoLocal(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function orRebuild(){ orMap = {}; orRows.forEach(r=>{ const k = r.person_key+'|'+r.day; (orMap[k] = orMap[k] || []).push(r); }); }
+function orWhen(iso){ const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); }
+window.__orTag = function(td, staffId, dayIdx){
+  const rows = orMap[staffId+'|'+isoLocal(addDays(currentMonday, dayIdx))]; if(!rows) return;
+  rows.slice().reverse().forEach(r=>{
+    const d = document.createElement('div'); d.className = 'orTag '+r.role;
+    d.title = 'Suggerimento del Master SalaOp — '+r.by+' · '+orWhen(r.at)+(r.note ? ' — '+r.note : '');
+    d.innerHTML = '<b>'+escapeHtml(r.room)+'</b> · '+(r.role==='primo' ? '1° operatore' : '2° operatore')+'<span class="by">suggerito da '+escapeHtml(r.by)+'</span>'+(r.note ? '<span class="by">'+escapeHtml(r.note)+'</span>' : '');
+    td.insertBefore(d, td.firstChild);
+  });
+};
+function orWeekRows(){ const a = isoLocal(currentMonday), b = isoLocal(addDays(currentMonday,6)); return orRows.filter(r=>r.day>=a && r.day<=b); }
+function updateOrBadge(){
+  const b = document.getElementById('btnOr'); if(!b) return;
+  const n = orWeekRows().length;
+  b.innerHTML = 'Suggerimenti sala' + (n ? ` <span class="reqbadge" title="Suggerimenti del Master SalaOp per la settimana in griglia">${n}</span>` : '');
+}
+window.__orPaint = function(){
+  document.querySelectorAll('td.cell').forEach(td=>{
+    if(td.classList.contains('editing')) return;
+    td.querySelectorAll('.orTag').forEach(x=>x.remove());
+    window.__orTag(td, td.dataset.staff, +td.dataset.day);
+  });
+  updateOrBadge();
+};
+async function refreshOr(){
+  if(!env.listOrAssignments) return;
+  try{
+    const rows = await env.listOrAssignments(isoLocal(addDays(new Date(),-30)), isoLocal(addDays(new Date(),200)));
+    const sig = JSON.stringify(rows.map(r=>[r.id,r.room,r.role,r.note,r.person_key,r.by,r.at]));
+    if(sig===orSig) return;
+    orSig = sig; orRows = rows; orRebuild(); window.__orPaint();
+    const ov = document.getElementById('orOverlay'); if(ov && ov.__redraw) ov.__redraw();
+  }catch(e){ console.error('sala op', e); }
+}
+function openOrModal(){
+  const ov = document.createElement('div'); ov.className = 'overlay'; ov.id = 'orOverlay';
+  ov.innerHTML = `<div class="modal spec-modal" style="max-width:860px">
+    <button class="modal-close" id="closeOr">✕</button>
+    <h2>Suggerimenti di sala operatoria</h2>
+    <p class="hint">Il Master SalaOp indica dall'app, per ogni giorno e sala, il primo e il secondo operatore. Sono solo suggerimenti per te mentre prepari i turni: non vanno accettati, non entrano nei turni, <b>non compaiono nella stampa né nell'app del personale</b>. Li vedi anche, in verde/azzurro tratteggiato, nella cella della persona.</p>
+    <div class="reqtabs" id="orTabs"></div>
+    <div id="orList"></div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('#closeOr').onclick = ()=> ov.remove();
+  ov.addEventListener('click', ev=>{ if(ev.target===ov) ov.remove(); });
+  let mode = 'week';
+  const DN = ['dom','lun','mar','mer','gio','ven','sab'];
+  function draw(){
+    const today = isoLocal(new Date());
+    const rows = (mode==='week' ? orWeekRows() : orRows.filter(r=>r.day>=today)).slice().sort((a,b)=> a.day===b.day ? (a.room===b.room ? (a.role==='primo' ? -1 : 1) : a.room.localeCompare(b.room,'it')) : (a.day<b.day ? -1 : 1));
+    ov.querySelector('#orTabs').innerHTML = `<button class="btn-small ${mode==='week'?'on':''}" data-m="week">Settimana in griglia (${orWeekRows().length})</button> <button class="btn-small ${mode==='all'?'on':''}" data-m="all">Da oggi in poi (${orRows.filter(r=>r.day>=today).length})</button>`;
+    ov.querySelectorAll('#orTabs [data-m]').forEach(b=> b.onclick = ()=>{ mode = b.dataset.m; draw(); });
+    if(!rows.length){ ov.querySelector('#orList').innerHTML = '<p class="hint">Nessun suggerimento del Master SalaOp per questo periodo.</p>'; return; }
+    const inGrid = new Set(staff.filter(s=>!s.removed).map(s=>s.id));
+    let h = '<table class="orTable"><thead><tr><th>Giorno</th><th>Sala</th><th>Persona</th><th>Ruolo</th><th>Nota</th><th>Suggerito da</th></tr></thead><tbody>', last = '';
+    rows.forEach(r=>{
+      const d = new Date(r.day+'T12:00:00'), dl = DN[d.getDay()]+' '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+      const dup = rows.filter(x=>x.day===r.day && x.room===r.room && x.role==='primo').length>1 && r.role==='primo';
+      h += `<tr class="${r.day!==last?'newday':''}"><td>${r.day!==last?escapeHtml(dl):''}</td><td><b>${escapeHtml(r.room)}</b></td><td>${escapeHtml(r.name)}${inGrid.has(r.person_key)?'':' <span class="hint">(non in griglia)</span>'}</td><td><span class="orRole ${r.role}">${r.role==='primo'?'Primo operatore':'Secondo operatore'}</span>${dup?' <span class="orWarn" title="Due primi operatori nella stessa sala">⚠</span>':''}</td><td>${escapeHtml(r.note)}</td><td>${escapeHtml(r.by)}<div class="hint" style="margin:0">${escapeHtml(orWhen(r.at))}</div></td></tr>`;
+      last = r.day;
+    });
+    ov.querySelector('#orList').innerHTML = h + '</tbody></table>';
+  }
+  ov.__redraw = draw; draw();
+}
+
+window.__adminStaffActive = async function(id, active){
+  const s = staff.find(x=>x.id===id); const name = s ? s.name : '';
+  try{
+    const n = env.setAccessActive ? await env.setAccessActive(id, name, active) : 0;
+    if(n) showStatusMsg(active ? `Accesso riattivato per ${name}` : `Accesso disattivato per ${name}: non può più entrare, nemmeno dai dispositivi dove era già collegato`);
+  }catch(err){ showStatusMsg(`${name}: ${active?'ripristinato':'rimosso'} dai turni, ma NON sono riuscito a ${active?'riattivare':'disattivare'} il suo accesso (${(err && err.message)||'errore'}). Controllalo in Personale online → Accessi.`); }
+};
 function subscribeRemote(){
   if(!env.db) return;
   try{ env.db.collection('rq').limit(1000).onSnapshot(mergeRemote, e=> console.error('rq snapshot', e)); }catch(e){ console.error(e); }
+  refreshOr(); setInterval(()=>{ if(!document.hidden) refreshOr(); }, 20000);
+  const ob = document.getElementById('btnOr'); if(ob) ob.onclick = openOrModal;
 }
 async function setRequestStatus(r, status, adminNote){
   const prev = r.status;
@@ -1918,10 +2002,96 @@ async function pushToStaff(auto){
   }finally{ pushBusy = false; }
 }
 
+
+// ---- scheda di comando delle notifiche: quando compaiono (ora di Roma)
+const NOTIF_DEF = {
+  turni_giorno:{on:true, time:'07:45', days:[1,2,3,4,5]},
+  desiderata:{on:true, dow:1, time:'20:00', deadline_dow:2, deadline_time:'18:00'},
+  sala:{on:true, dow:4, time:'12:00'},
+  solventi:{on:true, dom:20, time:'12:00'}
+};
+const NOTIF_DOW = ['','lunedì','martedì','mercoledì','giovedì','venerdì','sabato','domenica'];
+function openNotifModal(){
+  const ov = document.createElement('div'); ov.className = 'overlay';
+  const dowSel = (id)=> `<select id="${id}" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px">${NOTIF_DOW.slice(1).map((d,i)=>`<option value="${i+1}">${d}</option>`).join('')}</select>`;
+  const timeIn = (id)=> `<input type="time" id="${id}" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px">`;
+  const dom = `<select id="nSvDom" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px">${Array.from({length:28},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`;
+  const row = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+  ov.innerHTML = `<div class="modal" style="max-width:760px">
+    <button class="modal-close" id="closeNt">✕</button>
+    <h2>Notifiche e promemoria</h2>
+    <p class="hint">Qui decidi <b>quando</b> compaiono le notifiche del personale (orari di Roma). Compaiono sempre dentro l'app e, per chi ha attivato le notifiche sul telefono, anche come notifica del telefono. Ogni persona può spegnere dal proprio profilo quelle facoltative; la notifica dei desiderata no.</p>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:8px;background:#fdf3e1">
+      <b style="min-width:0">1 · Desiderata — obbligatoria, per tutti</b>
+      <span class="hint" style="margin:0">Ricorda di inviare le richieste (ferie, permessi, lezioni, congressi) per la settimana successiva.</span>
+      <div style="${row}"><span>Promemoria:</span>${dowSel('nDsDow')}<span>alle</span>${timeIn('nDsTime')}</div>
+      <div style="${row}"><span>Scadenza per inviare:</span>${dowSel('nDsDl')}<span>alle</span>${timeIn('nDsDlTime')}</div>
+      <span class="hint" style="margin:0">Da quando arriva il promemoria fino alla scadenza nell'app compare un avviso fisso. Non si può disattivare.</span>
+    </div>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:10px;background:#eef7f0">
+      <b style="min-width:0">2 · Turni del giorno — per tutti</b>
+      <span class="hint" style="margin:0">Ogni mattina riassume i turni personali della giornata (ferie e permessi approvati compresi). Non arriva a chi quel giorno non ha nulla.</span>
+      <label style="${row}"><input type="checkbox" id="nTgOn"> Attiva</label>
+      <div style="${row}"><span>Alle</span>${timeIn('nTgTime')}<span>nei giorni:</span>${NOTIF_DOW.slice(1).map((d,i)=>`<label style="display:inline-flex;gap:3px;align-items:center"><input type="checkbox" class="nTgDay" value="${i+1}">${d.slice(0,3)}</label>`).join('')}</div>
+    </div>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:10px;background:#eef2f8">
+      <b style="min-width:0">3 · Sala operatoria — Master SalaOp</b>
+      <span class="hint" style="margin:0">“Ricordati di inserire le assegnazioni di sala operatoria per la prossima settimana.” Nell'app l'avviso resta fino a domenica.</span>
+      <label style="${row}"><input type="checkbox" id="nSaOn"> Attiva</label>
+      <div style="${row}"><span>Ogni</span>${dowSel('nSaDow')}<span>alle</span>${timeIn('nSaTime')}</div>
+    </div>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:10px;background:#f3eefa">
+      <b style="min-width:0">4 · Solventi AG — chi ha il profilo Solventi AG</b>
+      <span class="hint" style="margin:0">“Ricordati di inserire le assegnazioni dei pazienti solventi del prossimo mese.” Nell'app l'avviso resta fino a fine mese. Il giorno va da 1 a 28 così esiste in tutti i mesi.</span>
+      <label style="${row}"><input type="checkbox" id="nSvOn"> Attiva</label>
+      <div style="${row}"><span>Il giorno</span>${dom}<span>di ogni mese, alle</span>${timeIn('nSvTime')}</div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px"><button class="btn-primary" id="ntSave" style="background:var(--accent);color:#fff">Salva le regole</button><button class="btn-ghost" id="ntDef" style="color:var(--ink,#222);border-color:var(--line)">Ripristina i valori consigliati</button><span class="hint" id="ntMsgR" style="margin:0"></span></div>
+    <p class="hint" style="margin-top:8px">Il servizio che invia le notifiche controlla ogni 15 minuti: sul telefono la notifica può arrivare con qualche minuto di ritardo. Le modifiche valgono da subito; nell'app arrivano al prossimo aggiornamento dei dati.</p>
+  </div>`;
+  document.body.appendChild(ov);
+  const q = id=> ov.querySelector('#'+id);
+  q('closeNt').onclick = ()=> ov.remove();
+  ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
+  function fill(r){
+    const d = JSON.parse(JSON.stringify(NOTIF_DEF));
+    ['turni_giorno','desiderata','sala','solventi'].forEach(k=>{ if(r && r[k]) Object.assign(d[k], r[k]); });
+    q('nDsDow').value = d.desiderata.dow; q('nDsTime').value = d.desiderata.time; q('nDsDl').value = d.desiderata.deadline_dow; q('nDsDlTime').value = d.desiderata.deadline_time;
+    q('nTgOn').checked = !!d.turni_giorno.on; q('nTgTime').value = d.turni_giorno.time;
+    ov.querySelectorAll('.nTgDay').forEach(c=>{ c.checked = d.turni_giorno.days.map(Number).includes(+c.value); });
+    q('nSaOn').checked = !!d.sala.on; q('nSaDow').value = d.sala.dow; q('nSaTime').value = d.sala.time;
+    q('nSvOn').checked = !!d.solventi.on; q('nSvDom').value = d.solventi.dom; q('nSvTime').value = d.solventi.time;
+  }
+  fill(null);
+  (async()=>{ try{ fill(await env.getNotifRules()); }catch(e){ q('ntMsgR').textContent = 'Non riesco a leggere le regole attuali: ' + (e && e.message || 'errore'); } })();
+  q('ntDef').onclick = ()=>{ fill(null); q('ntMsgR').textContent = 'Valori consigliati inseriti: premi “Salva le regole” per applicarli.'; };
+  q('ntSave').onclick = async ()=>{
+    const days = [...ov.querySelectorAll('.nTgDay')].filter(c=>c.checked).map(c=>+c.value);
+    if(!days.length){ q('ntMsgR').textContent = 'Turni del giorno: scegli almeno un giorno della settimana.'; return; }
+    const t = ['nDsTime','nDsDlTime','nTgTime','nSaTime','nSvTime'].map(id=>q(id).value);
+    if(t.some(x=>!/^([01]\d|2[0-3]):[0-5]\d$/.test(x))){ q('ntMsgR').textContent = 'Controlla gli orari: servono ore e minuti (per esempio 07:45).'; return; }
+    const rules = {
+      desiderata:{on:true, dow:+q('nDsDow').value, time:q('nDsTime').value, deadline_dow:+q('nDsDl').value, deadline_time:q('nDsDlTime').value},
+      turni_giorno:{on:q('nTgOn').checked, time:q('nTgTime').value, days},
+      sala:{on:q('nSaOn').checked, dow:+q('nSaDow').value, time:q('nSaTime').value},
+      solventi:{on:q('nSvOn').checked, dom:+q('nSvDom').value, time:q('nSvTime').value}
+    };
+    q('ntSave').disabled = true; q('ntMsgR').textContent = 'Salvataggio…';
+    try{ await env.setNotifRules(rules); q('ntMsgR').textContent = 'Salvato ✓'; }
+    catch(e){ q('ntMsgR').textContent = 'Non riuscito: ' + (e && e.message || 'errore'); }
+    q('ntSave').disabled = false;
+  };
+}
+
 // ---- pannello "Personale online": pubblicazione, accessi (email), notifiche, import
 function openStaffAppModal(){
   const ov = document.createElement('div'); ov.className = 'overlay';
-  const catLabel = id=> (CATS.find(c=>c.id===id)||{label:id==='segreteria'?'Segreteria':id}).label;
+  const catLabel = id=> (CATS.find(c=>c.id===id)||{label:id==='segreteria'?'Personale di supporto':id}).label;
   ov.innerHTML = `<div class="modal" style="max-width:860px">
     <button class="modal-close" id="closeSA">✕</button>
     <h2>Personale online</h2>
@@ -1939,13 +2109,13 @@ function openStaffAppModal(){
       <span class="hint" style="margin:0">Ognuno entra nell'app con la propria email (anche più di una, separate da virgola). Chi non ha email non può accedere.</span>
       <div id="saAcc"><p class="hint">Caricamento…</p></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn-primary" id="saAccSave" style="background:var(--accent);color:#fff">Salva accessi</button><span class="hint" id="saAccMsg" style="margin:0"></span></div>
-      <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><b style="font-size:13px">Aggiungi segreteria</b> <span class="hint">(vede i turni, non può modificare né inviare richieste)</span>
+      <div style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px"><b style="font-size:13px">Aggiungi personale di supporto</b> <span class="hint">(data manager, RN, segreteria: vede i turni e può inviare richieste di permesso)</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><input id="sgName" placeholder="Nome" style="flex:1;min-width:140px;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><input id="sgMail" placeholder="email" style="flex:2;min-width:200px;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><button class="btn-small" id="sgAdd">Aggiungi</button></div></div>
     </div>
 
     <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;background:#eef2f8">
       <b style="min-width:0">3 · Notifica sul telefono per le nuove richieste</b>
-      <span class="hint" style="margin:0">Installa l'app gratuita <b>ntfy</b> sul telefono, tocca "+" e inserisci l'argomento qui sotto. Scegli un nome lungo e difficile da indovinare.</span>
+      <span class="hint" style="margin:0">Installa l'app gratuita <b>ntfy</b> sul telefono, tocca "+" e inserisci l'argomento qui sotto. Scegli un nome lungo e difficile da indovinare. L'argomento è unico per tutti gli amministratori: gli altri amministratori vedono le richieste nell'app (scheda Richieste), senza notifica sul telefono.</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="ntTopic" placeholder="argomento segreto" autocapitalize="none" spellcheck="false" style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><button class="btn-small" id="ntGen">Genera</button><button class="btn-small" id="ntSave">Salva</button><button class="btn-small" id="ntTest">Invia prova</button></div>
       <span class="hint" id="ntMsg" style="margin:0"></span>
     </div>
@@ -1979,7 +2149,12 @@ function openStaffAppModal(){
     renderAccess();
   }
   function accessFor(s){
-    return access.find(a=>a.person_key===s.id) || access.find(a=>!a.person_key && a.category!=='segreteria' && (a.name||'').trim().toLowerCase()===s.name.trim().toLowerCase());
+    return access.find(a=>a.person_key===s.id) || access.find(a=>!a.person_key && (a.name||'').trim().toLowerCase()===s.name.trim().toLowerCase());
+  }
+  function roleBoxes(a){
+    if(!a) return '';
+    const canAdm = ['chirurghi','datamanager'].includes(a.category), canOr = canAdm;
+    return `<div class="accRoles">${canAdm ? `<label class="accRole"><input type="checkbox" class="accAdm" ${a.is_admin?'checked':''}> amministratore</label>` : ''}${canOr ? `<label class="accRole"><input type="checkbox" class="accOr" ${a.is_salaop?'checked':''}> Master SalaOp</label>` : ''}<label class="accRole"><input type="checkbox" class="accSv" ${a.is_solvag?'checked':''}> Solventi AG</label><label class="accRole"><input type="checkbox" class="accPa" ${a.is_pa?'checked':''}> Personal Assistant</label><span class="accPaWrap" style="${a.is_pa?'':'display:none'}">di <select class="accPaFor" style="padding:4px 6px;border:1px solid var(--line);border-radius:8px"><option value="">— scegli chi assiste —</option>${access.filter(x=>x.id!==a.id && x.active!==false && x.category!=='segreteria').map(x=>`<option value="${escapeAttr(x.id)}" ${a.pa_for===x.id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}</select></span><span class="hint" style="margin:0">i ruoli si sommano</span></div>`;
   }
   function renderAccess(){
     const people = staff.filter(s=>!s.removed);
@@ -1992,7 +2167,7 @@ function openStaffAppModal(){
       rows.forEach(s=>{
         const a = accessFor(s); if(a) linked.add(a.id);
         const em = a ? (a.emails||[]).join(', ') : '';
-        h += `<div class="acc-row" data-pk="${escapeAttr(s.id)}"><b>${escapeHtml(s.name)}</b><input class="accMail" value="${escapeAttr(em)}" placeholder="email (più di una: separate da virgola)"><span class="${em?'acc-ok':'acc-no'}">${em?'può accedere':'senza email'}</span></div>`;
+        h += `<div class="acc-row" data-pk="${escapeAttr(s.id)}"><b>${escapeHtml(s.name)}</b><input class="accMail" value="${escapeAttr(em)}" placeholder="email (più di una: separate da virgola)"><span class="${em?'acc-ok':'acc-no'}">${em?'può accedere':'senza email'}</span>${roleBoxes(a)}</div>`;
       });
     });
     const others = access.filter(a=>!linked.has(a.id));
@@ -2003,12 +2178,17 @@ function openStaffAppModal(){
         const em = (a.emails||[]).join(', ');
         h += `<div class="acc-row" data-sid="${escapeAttr(a.id)}"><div><b>${escapeHtml(a.name)}</b><div class="hint" style="margin:0">${a.is_admin?'amministratore · ':''}${escapeHtml(catLabel(a.category))}</div></div>
           <div style="display:flex;gap:6px;flex-wrap:wrap"><input class="accMail" value="${escapeAttr(em)}" placeholder="email" style="flex:2;min-width:160px">
-          ${a.category==='segreteria' ? '' : `<select class="accLink" style="flex:1;min-width:120px;padding:6px;border:1px solid var(--line);border-radius:8px"><option value="">collega a una persona del calendario…</option>${free.map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select>`}</div>
-          <span class="${em?'acc-ok':'acc-no'}">${em?'può accedere':'senza email'}</span></div>`;
+          ${false ? '' : `<select class="accLink" style="flex:1;min-width:120px;padding:6px;border:1px solid var(--line);border-radius:8px"><option value="">collega a una persona del calendario…</option>${free.map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join('')}</select>`}</div>
+          <span class="${em?'acc-ok':'acc-no'}">${em?'può accedere':'senza email'}</span>${roleBoxes(a)}</div>`;
       });
     }
     q('saAcc').innerHTML = h || '<p class="hint">Nessuna persona in elenco.</p>';
   }
+  function roleVals(row, a){
+    const ad = row.querySelector('.accAdm'), or = row.querySelector('.accOr'), sv = row.querySelector('.accSv'), pa = row.querySelector('.accPa'), pf = row.querySelector('.accPaFor');
+    return a ? {is_admin: ad ? ad.checked : undefined, is_salaop: or ? or.checked : undefined, is_solvag: sv ? sv.checked : undefined, is_pa: pa ? pa.checked : undefined, pa_for: pf && pf.value ? pf.value : null} : {};
+  }
+  q('saAcc').addEventListener('change', e=>{ if(e.target.classList.contains('accPa')){ const w = e.target.closest('.accRoles').querySelector('.accPaWrap'); if(w) w.style.display = e.target.checked ? '' : 'none'; } });
   q('saAccSave').onclick = async ()=>{
     q('saAccMsg').textContent = 'Salvataggio…'; q('saAccSave').disabled = true;
     try{
@@ -2017,14 +2197,14 @@ function openStaffAppModal(){
         const s = staff.find(x=>x.id===row.dataset.pk); if(!s) return;
         const a = accessFor(s); const em = emailsOf(row.querySelector('.accMail').value);
         if(!a && !em.length) return;                                   // niente email e niente riga: non creo nulla
-        upserts.push({id: a && a.id, person_key: s.id, name: s.name, category: s.cat, emails: em});
+        upserts.push({id: a && a.id, person_key: s.id, name: s.name, category: s.cat, emails: em, ...roleVals(row, a)});
       });
       q('saAcc').querySelectorAll('.acc-row[data-sid]').forEach(row=>{
         const a = access.find(x=>x.id===row.dataset.sid); if(!a) return;
         const em = emailsOf(row.querySelector('.accMail').value);
         const lk = row.querySelector('.accLink'); const key = lk && lk.value ? lk.value : null;
         const s = key ? staff.find(x=>x.id===key) : null;
-        upserts.push({id: a.id, person_key: key || a.person_key || null, name: a.name, category: s ? s.cat : a.category, emails: em, keepName: true});
+        upserts.push({id: a.id, person_key: key || a.person_key || null, name: a.name, category: s ? s.cat : a.category, emails: em, keepName: true, ...roleVals(row, a)});
       });
       await env.saveAccess(upserts);
       await loadAccess();
@@ -2035,7 +2215,7 @@ function openStaffAppModal(){
   q('sgAdd').onclick = async ()=>{
     const name = q('sgName').value.trim(), em = emailsOf(q('sgMail').value);
     if(!name || !em.length){ q('saAccMsg').textContent = 'Inserisci nome ed email.'; return; }
-    try{ await env.saveAccess([{person_key:null, name, category:'segreteria', emails:em}]); q('sgName').value = ''; q('sgMail').value = ''; await loadAccess(); q('saAccMsg').textContent = 'Aggiunta ✓'; }
+    try{ await env.saveAccess([{person_key:null, name, category:'datamanager', emails:em}]); q('sgName').value = ''; q('sgMail').value = ''; await loadAccess(); q('saAccMsg').textContent = 'Aggiunta ✓'; }
     catch(e){ q('saAccMsg').textContent = 'Non riuscito: ' + (e && e.message || 'errore'); }
   };
   loadAccess();
@@ -2090,8 +2270,19 @@ async function saveBlobLike(filename, data){
 
 document.getElementById('btnRequests').addEventListener('click', openRequestsModal);
 document.getElementById('btnStaffApp').addEventListener('click', openStaffAppModal);
+document.getElementById('btnNotif').addEventListener('click', openNotifModal);
 await loadExt(); updateReqBadge(); updateStaffAppBadge();
+document.addEventListener('click', ev=>{ document.querySelectorAll('details.amenu[open]').forEach(d=>{ if(!d.contains(ev.target) || ev.target.closest('.amenu-pop button')) d.removeAttribute('open'); }); });
 await init();
+const goToday = async ()=>{ currentMonday = getMonday(new Date()); await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid(); window.scrollTo(0,0); };
+document.getElementById('btnToday').addEventListener('click', goToday);
+{ let hiddenAt = 0, lastDay = new Date().toDateString();
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){ hiddenAt = Date.now(); return; }
+    const modalOpen = [...document.querySelectorAll('.overlay')].some(o=>getComputedStyle(o).display!=='none');
+    const newDay = new Date().toDateString()!==lastDay;
+    if(!modalOpen && (newDay || (hiddenAt && Date.now()-hiddenAt>10*60*1000))){ lastDay = new Date().toDateString(); goToday(); }
+  }); }
 if(env.setStaffGetter) env.setStaffGetter(()=>staff);
 subscribeRemote();
 

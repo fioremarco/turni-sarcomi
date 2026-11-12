@@ -23,18 +23,32 @@
   </div>
   <div class="topbar-weekinfo" id="topbarWeekInfo"></div>
   <div class="actions no-print">
-    <button class="btn-ghost" id="btnStaff">Gestisci personale</button>
-    <button class="btn-ghost" id="btnRules">Regole ricorrenti</button>
-    <button class="btn-ghost" id="btnCounters">Contatori assenze</button>
-    <button class="btn-ghost" id="btnTms">TMS chirurghi</button>
-    <button class="btn-ghost" id="btnSpecRoles">Turni specializzandi</button>
-    <button class="btn-ghost" id="btnPalette">Libreria turni</button>
-    <button class="btn-ghost" id="btnRequests">Richieste</button>
-    <button class="btn-ghost" id="btnStaffApp">Personale online</button>
-    <button class="btn-ghost" id="btnBackup">Backup Excel</button>
-    <button class="btn-ghost" id="btnExportJson" title="Salva tutti i dati (personale, regole, settimane, storico pubblicazioni) in un unico file, per trasferirli nella versione online">Esporta tutto (JSON)</button>
-    <button class="btn-ghost" id="btnApplyRules">Applica regole alla settimana</button>
-    <button class="btn-primary" id="btnPrint">Esporta / Stampa PDF</button>
+    <div class="agroup inbox no-print"><span class="alabel">Da vedere</span><div class="abtns">
+      <button class="btn-ghost" id="btnRequests">Richieste</button>
+      <button class="btn-ghost" id="btnOr">Suggerimenti sala</button>
+    </div></div>
+    <div class="agroup no-print"><span class="alabel">Prepara la settimana</span><div class="abtns">
+      <button class="btn-ghost" id="btnPalette">Libreria turni</button>
+      <button class="btn-ghost" id="btnRules">Regole ricorrenti</button>
+      <button class="btn-ghost" id="btnApplyRules" title="Inserisce le regole ricorrenti SOLO nella settimana che stai guardando">Applica regole a questa settimana</button>
+      <button class="btn-ghost" id="btnSpecRoles">Turni specializzandi</button>
+    </div></div>
+    <div class="agroup no-print"><span class="alabel">Controlli</span><div class="abtns">
+      <button class="btn-ghost" id="btnCounters">Contatori assenze</button>
+      <button class="btn-ghost" id="btnTms">TMS chirurghi</button>
+    </div></div>
+    <div class="agroup no-print"><span class="alabel">Persone e accessi</span><div class="abtns">
+      <button class="btn-ghost" id="btnStaff">Gestisci personale</button>
+      <button class="btn-ghost" id="btnStaffApp">Personale online</button>
+      <button class="btn-ghost" id="btnNotif" title="Quando compaiono le notifiche e i promemoria per il personale">Notifiche</button>
+    </div></div>
+    <div class="agroup end no-print"><span class="alabel">Esporta</span><div class="abtns">
+      <details class="amenu"><summary class="btn-ghost">Archivio &#9662;</summary><div class="amenu-pop">
+        <button class="btn-ghost" id="btnBackup">Backup Excel</button>
+        <button class="btn-ghost" id="btnExportJson" title="Salva tutti i dati (personale, regole, settimane, storico pubblicazioni) in un unico file, per trasferirli nella versione online">Esporta tutto (JSON)</button>
+      </div></details>
+      <button class="btn-primary" id="btnPrint">Esporta / Stampa PDF</button>
+    </div></div>
   </div>
 </div>
 
@@ -55,6 +69,7 @@
 <div class="weeknav">
   <div class="navbtns no-print"><button class="btn-small" id="prevWeek">‹ Settimana prec.</button></div>
   <div class="range" id="weekRange">—</div>
+  <button class="btn-small no-print" id="btnToday">Oggi</button>
   <div class="pubinfo" id="pubInfo">—</div>
   <button class="btn-small no-print" id="btnPublish">Pubblica settimana</button>
   <div class="navbtns no-print"><button class="btn-small" id="nextWeek">Settimana succ. ›</button></div>

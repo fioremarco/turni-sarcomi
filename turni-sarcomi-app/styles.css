@@ -5,7 +5,7 @@
   --chip:#e7efe9; --ok:#15803d; --ok-bg:#dff3e5; --bad:#b91c1c; --bad-bg:#fbe2e2;
   --wait:#a35a05; --wait-bg:#fdecd0; --me:#fff7d6; --field:#ffffff; --shadow:0 6px 24px rgba(10,30,18,.18);
   --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-  --nav-h:64px;
+  --nav-h:64px; --deep2:#1b5b34; --shadow-sm:0 1px 2px rgba(16,40,26,.06),0 3px 10px rgba(16,40,26,.06);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -13,6 +13,7 @@
     --accent:#4cc27a; --accent-ink:#06230f; --deep:#0a2415; --deep-ink:#ffffff;
     --chip:#1f2f25; --ok:#6fdc97; --ok-bg:#16361f; --bad:#ff9a9a; --bad-bg:#3d1a1a;
     --wait:#f5c26b; --wait-bg:#3a2a10; --me:#2e2a10; --field:#101a14; --shadow:0 6px 24px rgba(0,0,0,.5);
+    --deep2:#12381f; --shadow-sm:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
     color-scheme:dark;
   }
 }
@@ -34,16 +35,6 @@ button{cursor:pointer;}
 .who:active{background:rgba(255,255,255,.28);}
 main{flex:1; padding:14px max(16px, env(safe-area-inset-right,0px)) calc(var(--nav-h) + 40px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px)); display:flex; flex-direction:column; gap:14px; min-width:0;}
 .offline{background:var(--wait-bg); color:var(--wait); border-radius:10px; padding:8px 12px; font-size:12.5px; font-weight:600;}
-
-/* ---------- barra in basso (pastiglia) ---------- */
-.nav{position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; justify-content:center; pointer-events:none;
-  padding:0 16px calc(12px + env(safe-area-inset-bottom,0px));}
-.nav-pill{pointer-events:auto; display:flex; gap:4px; padding:5px; background:var(--deep); border-radius:34px; box-shadow:var(--shadow); max-width:100%;}
-.nav-pill button{position:relative; border:0; background:transparent; color:rgba(255,255,255,.72); border-radius:28px; padding:9px 16px; min-height:46px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:11.5px; font-weight:600; min-width:74px;}
-.nav-pill button svg{width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;}
-.nav-pill button[aria-current="page"]{background:#fff; color:var(--deep);}
-.badge{position:absolute; top:2px; right:10px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:#e8590c; color:#fff; font-size:11px; font-weight:700; line-height:18px; text-align:center;}
 
 /* ---------- componenti ---------- */
 .card{background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden;}
@@ -165,3 +156,167 @@ input[type=file]::file-selector-button{border:0; background:var(--chip); color:v
 
 .prot{display:block;font-weight:500;font-size:10.5px;color:var(--soft);margin-top:1px}
 .pname .prot{display:inline;margin-left:4px}
+
+.todaybtn{margin-top:4px; background:transparent; border:1.5px solid var(--accent); color:var(--accent); font:600 12px/1 system-ui,sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
+
+.day .dot{display:block; margin:2px auto 0; width:auto; min-width:16px; height:16px; line-height:16px; border-radius:8px; background:var(--accent); color:var(--accent-ink); font-size:10px; font-weight:700; padding:0 4px;}
+.day[aria-selected="true"] .dot{background:var(--accent-ink); color:var(--accent);}
+.orrow{display:flex; align-items:center; gap:8px; padding:10px 6px 10px 12px; border-top:1px solid var(--line);}
+.orrow:first-child{border-top:0;}
+.orbody{flex:1; min-width:0; text-align:left; background:transparent; border:0; padding:2px 0; color:var(--ink); font:inherit;}
+.orbody .ornote{display:block;}
+.orx{background:transparent; border:0; color:var(--soft); width:34px; height:34px;}
+.warn{color:var(--wait); text-transform:none; letter-spacing:0; font-weight:700;}
+
+/* titolare della programmazione: funzioni da amministratore offuscate per chi non lo è */
+.lockwrap{position:relative; min-height:300px}
+.lockfake{filter:blur(6px); opacity:.55; pointer-events:none; user-select:none; display:grid; gap:12px}
+.lockfake .sk{height:12px; border-radius:6px; background:var(--line); margin:10px 0}
+.lockfake .w60{width:60%} .lockfake .w90{width:90%} .lockfake .w40{width:40%}
+.lockmsg{position:absolute; left:0; right:0; top:14px; box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.lockmsg h2{margin:0 0 8px; font-size:17px; color:#7c2d12}
+.lockmsg p{margin:0 0 14px; font-size:14px; line-height:1.5}
+
+/* richieste di permesso unificate e schermata Sala Op semplificata */
+.opts{display:flex; flex-wrap:wrap; gap:8px}
+.opts button{flex:1 1 calc(50% - 8px); min-width:120px; border:1.5px solid var(--line); background:var(--card); color:var(--ink); border-radius:12px; padding:11px 10px; font:600 14px/1.2 inherit; font-family:inherit}
+.opts button[aria-pressed="true"]{background:var(--ok-bg); border-color:var(--ok); color:var(--ok)}
+.opts button .dot{display:inline-block; min-width:18px; padding:0 5px; margin-left:4px; border-radius:9px; background:var(--ok); color:var(--field); font-size:11px; line-height:18px}
+.sum{margin:4px 0 12px; padding:10px 12px; border-radius:10px; background:var(--chip); font-weight:700; font-size:14px}
+.sum:empty{display:none}
+input[type=date]{width:100%; font:inherit; padding:11px 12px; border:1.5px solid var(--line); border-radius:11px; background:var(--card); color:var(--ink)}
+.ocols{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0}
+.ocolh{font-size:12.5px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.04em; margin:0 2px 6px}
+.ocol{display:flex; flex-direction:column; gap:6px; min-width:0}
+.pk{border:1.5px solid var(--line); background:var(--card); color:var(--ink); border-radius:11px; padding:10px 8px; font:600 14px/1.2 inherit; font-family:inherit; text-align:left; overflow-wrap:anywhere}
+.pk small{display:block; font-weight:500; font-size:11px; color:var(--soft); margin-top:2px}
+.pk[aria-pressed="true"]{background:var(--ok-bg); border-color:var(--ok); color:var(--ok); box-shadow:inset 0 0 0 1px var(--ok)}
+.pk[aria-pressed="true"]::before{content:"✓ "}
+.dl-banner{background:var(--wait-bg); color:var(--wait); border-radius:12px; padding:11px 14px; font-weight:600; font-size:13.5px; line-height:1.45; margin-bottom:12px}
+.dl-banner button{margin-top:8px}
+
+/* ---------- barra di aggiornamento versione ---------- */
+.updbar{position:fixed; left:12px; right:12px; top:calc(10px + env(safe-area-inset-top,0px)); z-index:60; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:14px; background:var(--deep); color:#fff; font-size:14px; font-weight:600; box-shadow:var(--shadow)}
+.updbar button{border:0; border-radius:10px; padding:8px 14px; background:#fff; color:var(--deep); font:700 14px/1 inherit; font-family:inherit}
+/* ---------- più di quattro schede: pastiglia compatta ---------- */
+/* ---------- Solventi AG: riepilogo a istogrammi e storico ---------- */
+.hist{display:flex; flex-direction:column; gap:7px}
+.hrow{display:grid; grid-template-columns:minmax(64px,26%) 1fr 64px; align-items:center; gap:8px; font-size:13px}
+.hn{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hbar{position:relative; height:18px; background:var(--chip); border-radius:6px; overflow:visible}
+.hbar i{display:block; height:100%; background:var(--ok); border-radius:6px; min-width:2px}
+.hmark{position:absolute; top:-3px; bottom:-3px; width:0; border-left:2px dashed var(--ink); opacity:.55}
+.hv{display:flex; flex-direction:column; align-items:flex-end; line-height:1.15}
+.hv small{font-size:11px; color:var(--soft)}
+.hkey{display:inline-block; width:0; height:10px; border-left:2px dashed var(--ink); opacity:.55; vertical-align:middle}
+.stbl{display:flex; flex-direction:column}
+.sth,.str{display:grid; grid-template-columns:minmax(74px,1.05fr) 1fr 1fr 54px; gap:6px; align-items:center; padding:9px 12px; font-size:13px}
+.sth{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--soft); background:var(--chip)}
+.str{border-top:1px solid var(--line)}
+.sth + .str,.smon + .str{border-top:0}
+.str .sd{font-weight:700}
+.str small{display:block; font-weight:500; font-size:10.5px; color:var(--soft)}
+.smon{padding:8px 12px 6px; font-size:12px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.05em; border-top:1px solid var(--line); background:var(--bg)}
+
+/* notifiche e promemoria */
+.nt-card{background:var(--chip); border-radius:12px; padding:11px 14px; margin-bottom:12px; font-size:13.5px; line-height:1.45; display:flex; flex-direction:column; gap:8px}
+.nt-card.warn{background:var(--wait-bg); color:var(--wait)}
+.nt-h{font-weight:700; font-size:13px; letter-spacing:.02em}
+.nt-p{display:flex; flex-wrap:wrap; gap:6px}
+.nt-b{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.nt-x{border:0; background:none; color:var(--soft); font:600 12.5px/1 inherit; font-family:inherit; padding:6px 2px; text-decoration:underline; align-self:flex-start}
+.nt-b .nt-x{align-self:center}
+.lnk{border:0; background:none; color:var(--deep); font:600 inherit; font-family:inherit; text-decoration:underline; padding:0}
+.nrow{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line)}
+.nrow .ntx{min-width:0; flex:1}
+.nrow .ntx b{font-size:14.5px}
+.lockb{flex:none; font-size:12px; font-weight:700; color:var(--soft); background:var(--chip); border-radius:999px; padding:5px 10px}
+.sw{flex:none; position:relative; width:50px; height:30px; border-radius:999px; border:0; background:var(--line); padding:0; transition:background .15s}
+.sw i{position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--ok)}
+.sw[aria-checked="true"] i{transform:translateX(20px)}
+.sw:disabled{opacity:.55}
+.setback{margin-bottom:10px}
+
+/* =====================================================================
+   Rinnovo grafico
+   ===================================================================== */
+/* barra in basso: larga quanto l'app, schede di pari larghezza, etichetta su una riga */
+.nav{position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; justify-content:center; pointer-events:none; padding:0 12px calc(10px + env(safe-area-inset-bottom,0px));}
+.nav-pill{pointer-events:auto; display:flex; gap:2px; padding:5px; width:100%; max-width:616px; background:var(--deep); border-radius:26px; box-shadow:0 10px 30px rgba(8,28,16,.32), 0 0 0 1px rgba(255,255,255,.06) inset;}
+.nav-pill button{position:relative; flex:1 1 0; min-width:0; border:0; background:transparent; color:rgba(255,255,255,.7); border-radius:21px; padding:7px 2px 6px; min-height:52px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:11px; font-weight:600; letter-spacing:0; transition:background .15s,color .15s;}
+.nav-pill button span:not(.badge){display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.1;}
+.nav-pill button svg{width:21px; height:21px; flex:none; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;}
+.nav-pill button[aria-current="page"]{background:#fff; color:var(--deep); font-weight:700;}
+.nav-pill.n2 button,.nav-pill.n3 button{font-size:12px;}
+.nav-pill.n5 button{font-size:10.5px;}
+.nav-pill.n6 button{font-size:9.8px; letter-spacing:-.01em;}
+.nav-pill.n6 button svg,.nav-pill.n5 button svg{width:20px; height:20px;}
+.badge{position:absolute; top:3px; left:calc(50% + 5px); right:auto; min-width:17px; height:17px; padding:0 4px; border-radius:9px; background:#e8590c; color:#fff; font-size:10.5px; font-weight:700; line-height:17px; text-align:center; box-shadow:0 0 0 2px var(--deep);}
+.nav-pill button[aria-current="page"] .badge{box-shadow:0 0 0 2px #fff;}
+
+/* intestazione */
+.top{background:linear-gradient(135deg,var(--deep) 0%,var(--deep2) 100%); border-radius:0 0 22px 22px; box-shadow:0 6px 18px rgba(8,28,16,.22); padding-bottom:14px;}
+.top h1{font-size:18px; font-weight:800; letter-spacing:0;}
+.top small{font-size:10.5px; letter-spacing:.09em;}
+.who{background:rgba(255,255,255,.18); padding:8px 15px; box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;}
+main{padding-top:18px; gap:16px;}
+
+/* carte, titoli, pulsanti, campi */
+.card{border-radius:18px; border-color:transparent; box-shadow:var(--shadow-sm);}
+.scroll{border-radius:18px; border-color:transparent; box-shadow:var(--shadow-sm);}
+.h2{display:flex; align-items:center; gap:8px; font-size:11.5px; letter-spacing:.1em; margin:6px 2px 8px;}
+.h2::before{content:""; width:3px; height:12px; border-radius:2px; background:var(--accent); flex:none;}
+.btn{border-radius:14px; padding:14px 16px; box-shadow:0 2px 8px rgba(31,122,61,.28); transition:transform .08s, box-shadow .15s, opacity .15s;}
+.btn:active:not(:disabled){transform:scale(.985);}
+.btn.alt,.btn.bad{box-shadow:none;}
+.btn.alt{background:var(--card); border:1px solid var(--line);}
+.btn.sm{border-radius:11px;}
+input[type=text],input[type=email],input[type=time],input[type=search],input[type=date],textarea,select{border:1.5px solid var(--line); border-radius:12px; padding:12px 13px; background:var(--field);}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+input[type=date]{width:100%; min-width:0; font-size:16px; color:var(--ink);}
+.opts button{border-radius:14px; box-shadow:var(--shadow-sm); border-width:1.5px;}
+.opts button[aria-pressed="true"]{box-shadow:none;}
+.seg .grp{border-radius:13px; padding:3px;}
+.seg .grp button{border-radius:10px;}
+.ic{border-radius:14px; border-color:transparent; box-shadow:var(--shadow-sm);}
+.day{border-radius:14px; border-color:transparent; box-shadow:var(--shadow-sm); padding:8px 4px;}
+.day[aria-selected="true"]{box-shadow:0 3px 10px rgba(31,122,61,.35);}
+.wknav .rng{font-size:16px; font-weight:800;}
+.pill{border-radius:9px;}
+.prow{padding:12px 14px;}
+.pname{font-size:15px;}
+.chip{padding:3px 11px;}
+.dl-banner,.nt-card{border-radius:16px;}
+.install{border-radius:16px;}
+.empty{padding:34px 20px;}
+.toast{border-radius:26px; box-shadow:var(--shadow);}
+
+/* logo Sarcoma Service */
+.brand{display:flex; align-items:center; gap:11px; min-width:0;}
+.logochip{flex:none; width:38px; height:42px; background:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; padding:3px; box-shadow:0 1px 4px rgba(0,0,0,.25);}
+.logochip img{width:100%; height:100%; object-fit:contain; display:block;}
+.gate .logo{width:auto; height:104px; border-radius:14px; background:#fff; padding:6px; box-shadow:var(--shadow-sm);}
+.sheetlogo{display:block; height:46px; width:auto; margin:0 auto 6px; border-radius:8px; background:#fff; padding:3px; box-shadow:0 0 0 1px var(--line);}
+.sheetlogo + h3{text-align:center;}
+.sheetlogo{align-self:center;}
+.nav-pill.n6 button[aria-current="page"],.nav-pill.n5 button[aria-current="page"]{font-weight:600}
+
+/* postazione sul computer (console della Personal Assistant) */
+.desk .app{max-width:980px;}
+.desk .top{border-radius:0;}
+.desk .nav-pill{max-width:720px;}
+.desk main{padding-left:28px; padding-right:28px;}
+
+/* scorrimento tra settimane e selettore anno */
+@keyframes slideInR{from{opacity:.2; transform:translateX(34px)} to{opacity:1; transform:none}}
+@keyframes slideInL{from{opacity:.2; transform:translateX(-34px)} to{opacity:1; transform:none}}
+main.slide-r{animation:slideInR .22s ease-out}
+main.slide-l{animation:slideInL .22s ease-out}
+@media (prefers-reduced-motion:reduce){ main.slide-r, main.slide-l{animation:none} }
+.yrnav{margin-bottom:8px}
+.nowrap{margin:-2px 0 8px; text-align:center}
+.swipehint{font-size:11.5px; color:var(--soft); text-align:center; margin:2px 0 8px}
+
+.opts.o3 button{flex:1 1 0; min-width:0; padding-left:4px; padding-right:4px}

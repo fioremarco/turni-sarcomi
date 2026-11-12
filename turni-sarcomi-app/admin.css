@@ -217,15 +217,62 @@
     .wrap{padding:6px;}
     @page{size:A4 landscape; margin:6mm;}
   }
+  th.today{background:#1f7a3d!important; color:#fff!important;}
+  .actions{flex-basis:100%; display:flex; flex-wrap:wrap; gap:10px 12px; align-items:stretch}
+  .agroup{display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,.07); border-radius:12px; padding:7px 9px 9px}
+  .agroup .alabel{font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:rgba(255,255,255,.62); font-weight:700; padding-left:2px}
+  .agroup .abtns{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+  .agroup .btn-ghost, .agroup .btn-primary{padding:7px 11px; font-size:12.5px}
+  .agroup.inbox{background:rgba(255,255,255,.17)}
+  .agroup.inbox .btn-ghost{background:rgba(255,255,255,.22)}
+  .agroup.inbox .btn-ghost:hover{background:rgba(255,255,255,.34)}
+  .agroup.end{margin-left:auto}
+  .amenu{position:relative}
+  .amenu>summary{list-style:none; cursor:pointer; border-radius:8px; padding:7px 11px; font-size:12.5px; font-weight:600; background:rgba(255,255,255,.14); color:#fff; user-select:none}
+  .amenu>summary::-webkit-details-marker{display:none}
+  .amenu>summary:hover, .amenu[open]>summary{background:rgba(255,255,255,.26)}
+  .amenu-pop{position:absolute; right:0; top:calc(100% + 6px); z-index:70; background:var(--accent-dark); border:1px solid rgba(255,255,255,.22); border-radius:10px; padding:6px; display:flex; flex-direction:column; gap:4px; min-width:190px; box-shadow:0 10px 26px rgba(0,0,0,.35)}
+  .amenu-pop .btn-ghost{text-align:left; width:100%}
+  @media (max-width:1100px){.agroup.end{margin-left:0}}
+  @media print{.orTag{display:none!important}}
+  .print-mode .orTag{display:none!important}
+  .orTag{border-style:dashed!important; border-width:1px 1px 1px 3px!important; border-top-color:#7aa2d1; border-right-color:#7aa2d1; border-bottom-color:#7aa2d1; pointer-events:none; font-size:11px; line-height:1.25; padding:2px 6px; margin-bottom:3px; border-radius:6px; background:#e8f1fb; color:#143a63; border-left:3px solid #2f6db5;}
+  .orTag.primo{background:#e5f4ea; color:#14532d; border-left-color:#1f7a3d;}
+  .orTag .by{display:block; font-size:10px; opacity:.8;}
+  .accRoles{grid-column:1/-1; flex-basis:100%; display:flex; gap:18px; padding:2px 0 0}
+  .accRole{display:inline-flex; align-items:center; gap:6px; font-size:12px; white-space:nowrap; color:var(--ink-soft)}
+  .accRole input{width:auto!important; margin:0}
+  .orTable{width:100%; border-collapse:collapse; font-size:13px;}
+  .orTable th{text-align:left; padding:6px 8px; border-bottom:2px solid var(--line); font-size:12px;}
+  .orTable td{padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top;}
+  .orTable tr.newday td{border-top:2px solid var(--line);}
+  .orRole{display:inline-block; padding:2px 9px; border-radius:12px; font-size:12px; font-weight:700; background:#e8f1fb; color:#143a63;}
+  .orRole.primo{background:#e5f4ea; color:#14532d;}
+  .orWarn{color:#b45309; font-weight:700;}
+  .btn-small.on{background:#1f7a3d; color:#fff;}
+  td.cell.today{background:rgba(31,122,61,.07);}
   .pill[data-req]{outline:1.5px dashed #1f7a3d; outline-offset:-2px;}
   .reqbadge{display:inline-block; min-width:18px; padding:0 5px; border-radius:9px; background:#d97706; color:#fff; font-size:11px; font-weight:700; text-align:center; line-height:18px; margin-left:3px;}
   .reqtabs{display:flex; gap:6px; flex-wrap:wrap;}
   .reqcard{border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:8px; background:#fff;}
   .modal label{font-size:12.5px; color:var(--ink-soft);}
   #reqImport{display:none}
-  .adm-bar{position:fixed; left:14px; bottom:12px; z-index:60; display:flex; gap:8px; align-items:center; background:#123f22; color:#fff; border-radius:999px; padding:6px 8px 6px 14px; font:600 12px Inter,system-ui,sans-serif; box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .adm-bar{position:fixed; left:14px; bottom:12px; z-index:130; display:flex; gap:8px; align-items:center; background:#123f22; color:#fff; border-radius:999px; padding:6px 8px 6px 14px; font:600 12px Inter,system-ui,sans-serif; box-shadow:0 4px 14px rgba(0,0,0,.25)}
   .adm-bar a,.adm-bar button{color:#fff; background:rgba(255,255,255,.16); border:0; border-radius:999px; padding:5px 11px; font:600 12px Inter,system-ui,sans-serif; cursor:pointer; text-decoration:none}
   .adm-bar a:hover,.adm-bar button:hover{background:rgba(255,255,255,.28)}
+  .adm-bar .titchip{background:rgba(255,255,255,.16); border-radius:999px; padding:5px 11px; font-weight:700}
+  .adm-bar .titchip.me{background:#facc15; color:#3b2a00}
+  .adm-bar .titchip.other{background:#fecaca; color:#7f1d1d}
+  .titlock{position:fixed; inset:0; z-index:120; background:rgba(18,63,34,.30); -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px); display:flex; align-items:center; justify-content:center; padding:20px}
+  .titbox{max-width:460px; background:#fff; border:1px solid var(--line); border-radius:16px; padding:26px 28px; box-shadow:0 14px 50px rgba(0,0,0,.22); font-family:Inter,system-ui,sans-serif}
+  .titbox h2{margin:0 0 8px; font-size:19px; color:#7c2d12}
+  .titbox p{margin:0 0 14px; font-size:13.5px; line-height:1.55; color:#334155}
+  .titbox .row{display:flex; gap:8px; flex-wrap:wrap}
+  .titbox button{border:0; border-radius:10px; padding:9px 16px; font:700 13.5px Inter,system-ui,sans-serif; cursor:pointer; background:#1f7a3d; color:#fff}
+  .titbox button.alt{background:#e2e8f0; color:#1e293b}
+  .titbox .err{color:#b91c1c; font-size:12.5px; min-height:16px; margin-top:8px}
+  .titmodal{position:fixed; inset:0; z-index:125; background:rgba(20,25,40,.45); display:flex; align-items:center; justify-content:center; padding:20px}
+  @media print{ .titlock,.titmodal,.adm-bar{display:none !important} }
   .adm-gate{max-width:420px; margin:12vh auto 0; padding:28px 26px; background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.08); font-family:Inter,system-ui,sans-serif}
   .adm-gate h1{font-size:20px; margin:0 0 8px; color:#123f22}
   .adm-gate .note{font-size:13.5px; line-height:1.5; color:#475569}

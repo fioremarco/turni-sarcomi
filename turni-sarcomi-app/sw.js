@@ -1,8 +1,8 @@
 /* Turni Sarcomi — funzionamento offline di base.
    I file dell'app si aprono subito dalla memoria e si aggiornano in sottofondo.
    I dati (turni, richieste) NON passano da qui: vengono sempre chiesti all'archivio online. */
-var CACHE = 'turni-shell-v2';
-var SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+var CACHE = 'turni-shell-v12';
+var SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/logo.jpg'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(SHELL); }).then(function(){ return self.skipWaiting(); }));
@@ -26,4 +26,24 @@ self.addEventListener('fetch', function(e){
       });
     })
   );
+});
+
+/* Notifiche push: il messaggio (titolo, testo, scheda da aprire) arriva cifrato dal server e viene mostrato qui */
+self.addEventListener('push', function(e){
+  var d = {};
+  try{ d = e.data ? e.data.json() : {}; }catch(x){ d = {}; }
+  var title = d.t || 'Turni Sarcomi';
+  var body = d.b || 'Hai un promemoria nell\'app Turni.';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
+    tag: d.tag || 'turni', renotify: false, data: {tab: d.tab || 'cal'}
+  }));
+});
+self.addEventListener('notificationclick', function(e){
+  e.notification.close();
+  var tab = (e.notification.data && e.notification.data.tab) || 'cal';
+  e.waitUntil(self.clients.matchAll({type:'window', includeUncontrolled:true}).then(function(list){
+    for(var i=0;i<list.length;i++){ if('focus' in list[i]){ list[i].postMessage({go:tab}); return list[i].focus(); } }
+    return self.clients.openWindow('./#vai-'+tab);
+  }));
 });
