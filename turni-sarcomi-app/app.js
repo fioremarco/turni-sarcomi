@@ -47,6 +47,7 @@ var toastT;
 function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(function(){ t.classList.remove('show'); },2600); }
 
 var ICON = {
+  plan:'<svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M9 9.5V20M15 9.5V20M3.5 14.7h17"/></svg>',
   cal:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   perm:'<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M5 12H3M21 12h-2"/><circle cx="12" cy="12" r="5"/><path d="M12 10v2.2l1.6 1"/></svg>',
   inbox:'<svg viewBox="0 0 24 24"><path d="M3.5 13.5l2.4-7.2A2 2 0 0 1 7.8 5h8.4a2 2 0 0 1 1.9 1.3l2.4 7.2"/><path d="M3.5 13.5V18a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-4.5h-5.2a3.3 3.3 0 0 1-6.6 0z"/></svg>',
@@ -65,8 +66,9 @@ var S = {
   cal:{view:'giorno', weekIdx:0, day:0, onlyMe:false},
   or:{mon:null, day:0, rows:[], rooms:null, err:'', room:'', p1:'', p2:'', selKey:'', rev:0, busy:false},
   solv:{rows:[], end:false, shown:15, mode:'all', yr:0, yrData:{}, yrBusy:false, s2:'', s3:'', sk:'', day:'', err:'', busy:false, selKey:'', rev:0},
-  perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', note:'', busy:false, err:''},
+  perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', wmon:'', wk:{}, brush:null, note:'', busy:false, err:''},
   adm:{tab:'todo', busy:false},
+  plan:{sec:'prog', idx:-1, day:0, draft:{}, base:{}, cells:{}, col:'', busy:false, err:'', showLog:false, logAll:false, log:[], logLoaded:false, logBusy:false, logErr:''},
   push:{key:'', ready:false, on:false, busy:false, msg:''},
   rules:null, notif:{busy:false, msg:''}, go:''
 };
@@ -202,7 +204,7 @@ var SOLV_ROOM = 'Solventi AG';
 var DEFAULT_ROOMS = ['Sala 1','Sala 2','Sala solventi'];
 function orRoomList(){
   var r = [];
-  if(canOr()){ r = (S.or.rooms && S.or.rooms.length) ? S.or.rooms.slice() : DEFAULT_ROOMS.slice(); S.or.rows.forEach(function(x){ if(r.indexOf(x.room)<0) r.push(x.room); }); r = r.filter(function(x){ return x!==SOLV_ROOM; }); }
+  if(canOrEdit()){ r = (S.or.rooms && S.or.rooms.length) ? S.or.rooms.slice() : DEFAULT_ROOMS.slice(); S.or.rows.forEach(function(x){ if(r.indexOf(x.room)<0) r.push(x.room); }); r = r.filter(function(x){ return x!==SOLV_ROOM; }); }
   if(canSolv()) r.push(SOLV_ROOM);
   return r;
 }
@@ -212,9 +214,9 @@ function paFor(){ return (S.me && S.me.is_pa && S.me.pa_for) || ''; }
 function paForName(){ return (S.me && S.me.pa_for_name) || nameOfStaff(paFor()); }
 function readCache(){ try{ return JSON.parse(lsGet(LS.cache)||'null'); }catch(e){ return null; } }
 function writeCache(){
-  lsSet(LS.cache, JSON.stringify({me:S.me, rules:S.rules, weeks:S.weeks, people:S.people, cats:S.cats, dir:S.dir, approved:S.approved, props:S.props, at:new Date().toISOString()}));
+  lsSet(LS.cache, JSON.stringify({me:S.me, rules:S.rules, lib:S.lib, weeks:S.weeks, people:S.people, cats:S.cats, dir:S.dir, approved:S.approved, props:S.props, at:new Date().toISOString()}));
 }
-function applyCache(c){ S.rules=c.rules||null; S.weeks=c.weeks||[]; S.people=c.people||{}; S.cats=c.cats||[]; S.dir=c.dir||[]; S.approved=c.approved||[]; S.props=c.props||[]; S.loadedAt=c.at; }
+function applyCache(c){ S.rules=c.rules||null; S.lib=c.lib||null; S.weeks=c.weeks||[]; S.people=c.people||{}; S.cats=c.cats||[]; S.dir=c.dir||[]; S.approved=c.approved||[]; S.props=c.props||[]; S.loadedAt=c.at; }
 
 function refresh(rerender){
   if(!sb || S.loading) return Promise.resolve();
@@ -230,7 +232,7 @@ function refresh(rerender){
   ];
   var iStaff = -1, iOr = -1;
   if(isAdmin()){ iStaff = qs.length; qs.push(sb.from('staff').select('*').order('category').order('name')); }
-  if(canOr()){ iOr = qs.length; qs.push(sb.from('or_assignments').select('id,day,room,staff_id,role,note,set_by,updated_at').gte('day', fYmd(addD(new Date(),-8))).lte('day', fYmd(addD(new Date(),120))).order('day')); }
+  if(canOrEdit()){ iOr = qs.length; qs.push(sb.from('or_assignments').select('id,day,room,staff_id,role,note,set_by,updated_at').gte('day', fYmd(addD(new Date(), isAdmin() ? -120 : -8))).lte('day', fYmd(addD(new Date(),120))).order('day')); }
   var iSolv = -1;
   if(canSolv()){ iSolv = qs.length; qs.push(sb.from('solv_assignments').select('id,day,secondo,terzo,kind,set_by,updated_at').gte('day', isPA() ? fYmd(addD(new Date(),-8)) : jan1).order('day',{ascending:false})); }
   return Promise.all(qs).then(function(rs){
@@ -248,6 +250,7 @@ function refresh(rerender){
     S.or.rooms = (st.or_rooms && st.or_rooms.rooms) || null;
     S.push.key = (st.push_public_key && st.push_public_key.key) || '';
     S.rules = st.notif_rules || null;
+    S.lib = (st.turni_lib && st.turni_lib.lib) || null;
     S.offline = false; S.loadedAt = new Date().toISOString(); writeCache();
   }).catch(function(e){
     S.offline = true; var c = readCache(); if(c && !S.weeks.length) applyCache(c);
@@ -264,7 +267,7 @@ function updateBadge(){ try{ if(isAdmin() && navigator.setAppBadge){ var n=pendi
 function enter(){
   render();
   clearInterval(pollT);
-  pollT = setInterval(function(){ if(!document.hidden && S.me && !document.querySelector('.veil')) refresh(S.tab==='cal' || S.tab==='req' || S.tab==='sala' || S.tab==='solv'); }, 60000);
+  pollT = setInterval(function(){ if(!document.hidden && S.me && !document.querySelector('.veil')) refresh(S.tab==='cal' || S.tab==='req' || S.tab==='sala' || S.tab==='solv' || S.tab==='plan'); }, 60000);
 }
 
 /* =====================================================================
@@ -274,13 +277,13 @@ function render(){
   if(!S.me) return;
   var tabs = [{id:'cal', l:'Calendario', i:ICON.cal}];
   if(canRequest()) tabs.push({id:'perm', l:'Permessi', i:ICON.perm});
-  if(canOr() || canSolv()) tabs.push({id:'sala', l:'Sala Op', i:ICON.sala});
+  if((canOr() || canSolv()) && !(isAdmin() && !canSolv())) tabs.push({id:'sala', l:'Sala Op', i:ICON.sala});
   if(canSolvTab()) tabs.push({id:'solv', l:'Solventi AG', i:ICON.dollar});
-  if(isAdmin()){ tabs.splice(1,0,{id:'req', l:'Richieste', i:ICON.inbox}); tabs.push({id:'adm', l:'Gestione', i:ICON.gear}); }
+  if(isAdmin()){ tabs.splice(1,0,{id:'req', l:'Richieste', i:ICON.inbox}); tabs.splice(2,0,{id:'plan', l:isTit()?'Programma':'Sale', i:ICON.plan}); tabs.push({id:'adm', l:'Gestione', i:ICON.gear}); }
   if(S.go){ var g0 = S.go; S.go = ''; applyGo(g0); }
   if(S.tab!=='set' && !tabs.some(function(t){ return t.id===S.tab; })) S.tab = 'cal';
   var locked = isAdmin() && !isTit() && (S.tab==='req' || S.tab==='adm');
-  var body = locked ? lockHtml() : S.tab==='cal' ? calHtml() : S.tab==='perm' ? permHtml() : S.tab==='req' ? reqHtml() : S.tab==='sala' ? orHtml() : S.tab==='solv' ? solvHtml() : S.tab==='set' ? setHtml() : admHtml();
+  var body = locked ? lockHtml() : S.tab==='cal' ? calHtml() : S.tab==='perm' ? permHtml() : S.tab==='req' ? reqHtml() : S.tab==='sala' ? orHtml() : S.tab==='plan' ? planHtml() : S.tab==='solv' ? solvHtml() : S.tab==='set' ? setHtml() : admHtml();
   var pc = isAdmin() ? pendingCount() : 0;
   var nav = tabs.length>1 ? '<nav class="nav"><div class="nav-pill n'+tabs.length+'" role="tablist">'+tabs.map(function(t){
     return '<button role="tab" data-tab="'+t.id+'" aria-label="'+t.l+'" aria-current="'+(S.tab===t.id?'page':'false')+'">'+t.i+'<span>'+(t.id==='solv' && tabs.length>=5 ? 'Solventi' : t.l)+'</span>'+(t.id==='req'&&pc?'<span class="badge">'+pc+'</span>':'')+'</button>';
@@ -289,8 +292,8 @@ function render(){
   $('app').innerHTML = '<div class="app"><header class="top"><div class="brand"><span class="logochip"><img src="icons/logo.jpg" alt="Sarcoma Service"></span><div><h1>Turni Sarcomi</h1><small>Chirurgia dei Sarcomi · INT</small></div></div><button class="who" id="who" aria-label="Il tuo profilo">'+esc(S.me.name)+'</button></header>'+
     '<main>'+(S.offline?'<div class="offline">Senza connessione: vedi gli ultimi dati salvati'+(S.loadedAt?' ('+esc(fmtTime(S.loadedAt))+')':'')+'.</div>':'')+body+'</main>'+nav+'</div>';
   $('who').onclick = profileSheet;
-  document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv') refresh(true); }; });
-  if(locked) bindLock(); else if(S.tab==='cal') bindCal(); else if(S.tab==='perm') bindPerm(); else if(S.tab==='req') bindReq(); else if(S.tab==='sala') bindOr(); else if(S.tab==='solv') bindSolv(); else if(S.tab==='set') bindSet(); else bindAdm();
+  document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv'||S.tab==='plan') refresh(true); }; });
+  if(locked) bindLock(); else if(S.tab==='cal') bindCal(); else if(S.tab==='perm') bindPerm(); else if(S.tab==='req') bindReq(); else if(S.tab==='sala') bindOr(); else if(S.tab==='plan') bindPlan(); else if(S.tab==='solv') bindSolv(); else if(S.tab==='set') bindSet(); else bindAdm();
   if(keepScroll) window.scrollTo(0, keepScroll);
 }
 
@@ -549,8 +552,25 @@ function permCat(){
 function permKinds(){ return CAT_KINDS[permCat()] || CAT_KINDS.chirurghi; }
 function permDays(P){
   // elenco dei giorni richiesti; ritorna {items:[...], err:''}
-  if(!P.k) return {items:[], err:'Scegli che cosa chiedi.'};
   var today = fYmd(new Date());
+  if(P.mode==='week'){
+    var keys = Object.keys(P.wk).sort(), its = [], PKs = permKinds(), i;
+    for(i=0;i<keys.length;i++){
+      var dk = keys[i], e = P.wk[dk];
+      if(dk < today) continue;
+      if(PKs.indexOf(e.k)<0) continue;
+      var hh = '';
+      if(!e.whole){
+        if(!e.h1 || !e.h2) return {items:[], err:'Indica l\'orario (dalle – alle) per '+dayLabel(dk)+'.'};
+        if(e.h2 <= e.h1) return {items:[], err:'L\'orario di fine deve essere dopo l\'inizio ('+dayLabel(dk)+').'};
+        hh = e.h1+'-'+e.h2;
+      }
+      its.push({d:dk, k:e.k, h:hh});
+    }
+    if(!its.length) return {items:[], err:'Scegli almeno un giorno e che cosa chiedi per quel giorno.'};
+    return {items:its, err:''};
+  }
+  if(!P.k) return {items:[], err:'Scegli che cosa chiedi.'};
   if(P.mode==='period'){
     if(!P.d || !P.d2) return {items:[], err:'Scegli il primo e l\'ultimo giorno del periodo.'};
     if(P.d2 < P.d) return {items:[], err:'L\'ultimo giorno deve essere dopo il primo.'};
@@ -571,8 +591,39 @@ function permDays(P){
   }
   return {items:[{d:P.d, k:P.k, h:h}], err:''};
 }
+function permWeekMon(P){
+  if(!P.wmon){ var t = new Date(), dow = (t.getDay()+6)%7; P.wmon = fYmd(addD(t, 7-dow)); }   // di default la settimana prossima
+  return P.wmon;
+}
+function permBrush(P, PK){
+  var B = P.brush;
+  if(!B || PK.indexOf(B.k)<0) B = P.brush = {k:PK[0], whole:true, h1:'', h2:''};
+  if(!(KINDS[B.k] && KINDS[B.k].hr)) B.whole = true;
+  return B;
+}
+function wkAssTxt(e){ var sub = KINDS[e.k].hr ? (e.whole ? 'giornata intera' : (e.h1||'?')+'–'+(e.h2||'?')) : ''; return '<b>'+esc(KINDS[e.k].t)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':''); }
+function permWeekHtml(P, PK){
+  var mon = pYmd(permWeekMon(P)), today = fYmd(new Date()), allNowe = PK.every(function(k){ return KINDS[k] && KINDS[k].nowe; }), nd = allNowe ? 5 : 7, i, sun = addD(mon,6), B = permBrush(P, PK);
+  var rng = mon.getDate()+(mon.getMonth()!==sun.getMonth()?' '+MESI[mon.getMonth()]:'')+' – '+sun.getDate()+' '+MESI[sun.getMonth()]+' '+sun.getFullYear();
+  var thisMon = fYmd(addD(new Date(), -((new Date().getDay()+6)%7)));
+  var h = '<div class="wknav sm"><button type="button" class="ic" id="pwPrev" aria-label="Settimana precedente"'+(fYmd(mon)<=thisMon?' disabled':'')+'>‹</button><div class="mid"><div class="rng">'+rng+'</div></div><button type="button" class="ic" id="pwNext" aria-label="Settimana successiva">›</button></div>';
+  h += '<div class="wbr"><div class="lbl">1 · Che cosa chiedi</div><div class="wkinds k'+PK.length+'" id="pwKinds">'+PK.map(function(k){ return '<button type="button" data-bk="'+k+'" aria-pressed="'+(B.k===k)+'">'+esc(KINDS[k].l)+'</button>'; }).join('')+'</div>';
+  if(KINDS[B.k].hr){
+    h += '<div class="seg"><div class="grp"><button type="button" data-bw="w" aria-pressed="'+B.whole+'">Giornata intera</button><button type="button" data-bw="o" aria-pressed="'+(!B.whole)+'">Orario</button></div></div>';
+    if(!B.whole) h += '<div class="hours"><div class="field"><label for="bH1">Dalle</label><input type="time" id="bH1" value="'+esc(B.h1||'')+'"></div><div class="field"><label for="bH2">Alle</label><input type="time" id="bH2" value="'+esc(B.h2||'')+'"></div></div>';
+  }
+  h += '<div class="lbl">2 · Tocca i giorni a cui vuoi applicarlo</div><div class="wfast"><button type="button" data-wf="wd">Lun–Ven</button>'+(nd===7?'<button type="button" data-wf="all">Tutti i giorni</button>':'')+'<button type="button" data-wf="clr">Svuota</button></div></div><div class="wkp">';
+  for(i=0;i<nd;i++){
+    var d = addD(mon,i), ds = fYmd(d), past = ds < today, e = P.wk[ds];
+    h += '<div class="wkd'+(past?' past':'')+(e?' on':'')+'"><button type="button" class="wday" data-wkd="'+ds+'" aria-pressed="'+(!!e)+'"'+(past?' disabled':'')+'><span class="wdn"><b>'+D_SHORT[i]+'</b> '+d.getDate()+' '+MESI[d.getMonth()]+'</span>'+
+      (e && KINDS[e.k] ? '<span class="wpill" style="background:'+KINDS[e.k].bg+'">'+wkAssTxt(e)+'</span>' : '<span class="wadd">'+(past?'giorno passato':'+ '+esc(KINDS[B.k].t))+'</span>')+'</button>'+
+      (e && !past ? '<button type="button" class="wx" data-wkx="'+ds+'" aria-label="Togli '+esc(dayLabel(ds))+'">✕</button>' : '')+'</div>';
+  }
+  return h + '</div>'+(allNowe?'<div class="note">Sabato e domenica non compaiono: per quei giorni usa "Un giorno".</div>':'');
+}
 function permSummary(P){
   var r = permDays(P); if(!r.items.length) return '';
+  if(P.mode==='week'){ var n = r.items.length; return n+' giorn'+(n===1?'o':'i')+' pront'+(n===1?'o':'i')+' da inviare: '+groupItems(r.items).map(function(g){ return groupTxt(g).replace(' — ',': '); }).join(' · '); }
   var g = groupItems(r.items)[0]; return groupTxt(g).replace(' — ',': ');
 }
 function permHtml(){
@@ -586,9 +637,11 @@ function permHtml(){
     if(P.who==='other') h += '<div class="note">La richiesta è a nome di <b>'+esc(paForName())+'</b> e arriva al responsabile come se l\'avesse inviata lui. Tu puoi ritirarla finché è in attesa.</div>';
   }
   h += '<div class="card"><div class="pad">'+
-    '<div class="field"><span class="lbl">Che cosa chiedi</span><div class="opts'+(PK.length===3?' o3':'')+'" id="pKinds">'+PK.map(function(k){ return '<button type="button" data-pk="'+k+'" aria-pressed="'+(P.k===k)+'">'+esc(KINDS[k].l)+'</button>'; }).join('')+'</div></div>'+
-    '<div class="field"><span class="lbl">Per quando</span><div class="seg"><div class="grp"><button type="button" id="pmDay" aria-pressed="'+(P.mode==='day')+'">Un giorno</button><button type="button" id="pmPer" aria-pressed="'+(P.mode==='period')+'">Periodo</button></div></div></div>';
-  if(P.mode==='day'){
+    (P.mode==='week' ? '' : '<div class="field"><span class="lbl">Che cosa chiedi</span><div class="opts'+(PK.length===3?' o3':'')+'" id="pKinds">'+PK.map(function(k){ return '<button type="button" data-pk="'+k+'" aria-pressed="'+(P.k===k)+'">'+esc(KINDS[k].l)+'</button>'; }).join('')+'</div></div>')+
+    '<div class="field"><span class="lbl">Per quando</span><div class="seg"><div class="grp"><button type="button" id="pmDay" aria-pressed="'+(P.mode==='day')+'">Un giorno</button><button type="button" id="pmPer" aria-pressed="'+(P.mode==='period')+'">Periodo</button><button type="button" id="pmWk" aria-pressed="'+(P.mode==='week')+'">Settimana</button></div></div></div>';
+  if(P.mode==='week'){
+    h += permWeekHtml(P, PK);
+  } else if(P.mode==='day'){
     h += '<div class="field"><label for="pD">Giorno</label><input type="date" id="pD" min="'+fYmd(new Date())+'" value="'+esc(P.d)+'"></div>'+
       '<div class="field"><span class="lbl">Durata</span><div class="seg"><div class="grp"><button type="button" id="pwWhole" aria-pressed="'+P.whole+'">Giornata intera</button><button type="button" id="pwHrs" aria-pressed="'+(!P.whole)+'">Orario</button></div></div></div>';
     if(!P.whole) h += '<div class="field"><div class="hours"><div class="field"><label for="pH1">Dalle</label><input type="time" id="pH1" value="'+esc(P.h1)+'"></div><div class="field"><label for="pH2">Alle</label><input type="time" id="pH2" value="'+esc(P.h2)+'"></div></div></div>';
@@ -623,6 +676,37 @@ function bindPerm(){
   document.querySelectorAll('[data-pk]').forEach(function(x){ x.onclick = function(){ P.k = x.dataset.pk; P.err=''; render(); }; });
   if((b=$('pmDay'))) b.onclick = function(){ P.mode='day'; P.err=''; render(); };
   if((b=$('pmPer'))) b.onclick = function(){ P.mode='period'; P.err=''; render(); };
+  if((b=$('pmWk'))) b.onclick = function(){ P.mode='week'; P.err=''; render(); };
+  if((b=$('pwPrev'))) b.onclick = function(){ P.wmon = fYmd(addD(pYmd(permWeekMon(P)),-7)); render(); };
+  if((b=$('pwNext'))) b.onclick = function(){ P.wmon = fYmd(addD(pYmd(permWeekMon(P)),7)); render(); };
+  var B = (P.mode==='week') ? permBrush(P, permKinds()) : null;
+  function brushOk(){
+    if(!B) return false;
+    if(KINDS[B.k].hr && !B.whole){
+      if(!B.h1 || !B.h2){ P.err='Indica prima l\'orario (dalle – alle), poi tocca i giorni.'; if($('pErr')) $('pErr').textContent=P.err; return false; }
+      if(B.h2 <= B.h1){ P.err='L\'orario di fine deve essere dopo l\'inizio.'; if($('pErr')) $('pErr').textContent=P.err; return false; }
+    }
+    return true;
+  }
+  function paint(ds){ P.wk[ds] = {k:B.k, whole:B.whole, h1:B.whole?'':B.h1, h2:B.whole?'':B.h2}; }
+  document.querySelectorAll('[data-bk]').forEach(function(x){ x.onclick = function(){ B.k = x.dataset.bk; if(!KINDS[B.k].hr) B.whole = true; P.err=''; render(); }; });
+  document.querySelectorAll('[data-bw]').forEach(function(x){ x.onclick = function(){ B.whole = x.dataset.bw==='w'; P.err=''; render(); }; });
+  if((b=$('bH1'))) b.onchange = function(){ B.h1 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
+  if((b=$('bH2'))) b.onchange = function(){ B.h2 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
+  document.querySelectorAll('[data-wkd]').forEach(function(x){ x.onclick = function(){
+    var ds = x.dataset.wkd, e = P.wk[ds];
+    if(e && e.k===B.k && e.whole===B.whole && (e.whole || (e.h1===B.h1 && e.h2===B.h2))){ delete P.wk[ds]; P.err=''; render(); return; }
+    if(!brushOk()) return;
+    paint(ds); P.err=''; render();
+  }; });
+  document.querySelectorAll('[data-wkx]').forEach(function(x){ x.onclick = function(){ delete P.wk[x.dataset.wkx]; P.err=''; render(); }; });
+  document.querySelectorAll('[data-wf]').forEach(function(x){ x.onclick = function(){
+    var mode = x.dataset.wf, mon = pYmd(permWeekMon(P)), today = fYmd(new Date()), i, n = (mode==='wd') ? 5 : 7;
+    if(mode!=='clr' && !brushOk()) return;
+    for(i=0;i<7;i++){ var ds = fYmd(addD(mon,i)); if(ds<today) continue;
+      if(mode==='clr') delete P.wk[ds]; else if(i<n && !(KINDS[B.k].nowe && i>4)) paint(ds); }
+    P.err=''; render();
+  }; });
   if((b=$('pwWhole'))) b.onclick = function(){ P.whole=true; P.err=''; render(); };
   if((b=$('pwHrs'))) b.onclick = function(){ P.whole=false; P.err=''; render(); };
   if((b=$('pD'))) b.onchange = function(){ P.d=this.value; if(P.mode==='period' && P.d2 && P.d2<P.d) P.d2=''; if(P.mode==='period') render(); else upd(); };
@@ -648,7 +732,7 @@ function sendProposal(){
   sb.rpc('submit_proposal', {p_items:r.items, p_note:(P.note||'').trim(), p_for:forOther||null}).then(function(x){
     P.busy=false;
     if(x.error){ P.err = errMsg(x.error); return render(); }
-    P.d=''; P.d2=''; P.h1=''; P.h2=''; P.note=''; toast(forOther?'Richiesta inviata per '+paForName()+' ✓':isTit()?'Registrato nel calendario':'Richiesta inviata ✓');
+    P.d=''; P.d2=''; P.h1=''; P.h2=''; P.wk={}; P.note=''; toast(forOther?'Richiesta inviata per '+paForName()+' ✓':isTit()?'Registrato nel calendario':'Richiesta inviata ✓');
     return refresh(true);
   }, function(e){ P.busy=false; P.err=errMsg(e); render(); });
 }
@@ -997,7 +1081,7 @@ function orHtml(){
   h += '<div class="ocols">'+col('Primo operatore','op1',O.p1)+col('Secondo operatore','op2',O.p2)+'</div>';
   var had = O.rows.some(function(x){ return x.day===ds && x.room===O.room; });
   var empty = !O.p1 && !O.p2;
-  h += '<div class="err" id="oErr">'+esc(O.err)+'</div><button class="btn" id="oSend"'+(O.busy||(empty&&!had)?' disabled':'')+'>'+(O.busy?'Invio in corso…':(empty&&had?'Svuota la sala':'Invia'))+'</button>'+
+  h += '<div class="err" id="oErr">'+esc(O.err)+'</div><button class="btn" id="oSend"'+(O.busy||(empty&&!had)?' disabled':'')+'>'+(O.busy?'Invio in corso…':(empty&&had?'Svuota la sala':'Invia'))+'</button>'+(had?'<button type="button" class="btn alt" id="oDel">Cancella la sala di questo giorno</button>':'')+
     '<div class="note">Puoi scegliere anche solo uno dei due. Tocca di nuovo un nome per toglierlo. Chi era già in un\'altra sala nello stesso giorno viene spostato in questa.</div>';
   // riepilogo del giorno
   var sum = orRoomList().map(function(r){
@@ -1021,9 +1105,13 @@ function bindOr(){
   document.querySelectorAll('[data-op1]').forEach(function(x){ x.onclick = function(){ var id = x.dataset.op1; O.p1 = (O.p1===id ? '' : id); if(O.p2===id) O.p2=''; O.err=''; render(); }; });
   document.querySelectorAll('[data-op2]').forEach(function(x){ x.onclick = function(){ var id = x.dataset.op2; O.p2 = (O.p2===id ? '' : id); if(O.p1===id) O.p1=''; O.err=''; render(); }; });
   var V = S.solv;
+  bindSolvDel();
   document.querySelectorAll('[data-sv2]').forEach(function(x){ x.onclick = function(){ var id = x.dataset.sv2; V.s2 = (V.s2===id ? '' : id); if(V.s3===id) V.s3=''; V.err=''; render(); }; });
   document.querySelectorAll('[data-sv3]').forEach(function(x){ x.onclick = function(){ var id = x.dataset.sv3; V.s3 = (V.s3===id ? '' : id); if(V.s2===id) V.s2=''; V.err=''; render(); }; });
   document.querySelectorAll('[data-sk]').forEach(function(x){ x.onclick = function(){ V.sk = (V.sk===x.dataset.sk ? '' : x.dataset.sk); V.err=''; render(); }; });
+  function armDel(btn, run){ btn.onclick = function(){ if(btn.dataset.arm!=='1'){ btn.dataset.arm='1'; btn.textContent='Conferma: cancella la sala'; return; } btn.disabled = true; run(); }; }
+  if((b=$('svDel'))) armDel(b, function(){ sb.rpc('set_solv_day', {p_day:orDayStr(), p_secondo:null, p_terzo:null, p_kind:null}).then(function(r){ if(r.error){ V.err = errMsg(r.error); return render(); } V.rev++; toast('Sala cancellata ✓'); return refresh(true); }, function(e){ V.err=errMsg(e); render(); }); });
+  if((b=$('oDel'))) armDel(b, function(){ sb.rpc('set_or_room', {p_day:orDayStr(), p_room:O.room, p_primo:null, p_secondo:null}).then(function(r){ if(r.error){ O.err = errMsg(r.error); return render(); } O.rev++; S.plan.logLoaded = false; toast('Sala cancellata ✓'); return refresh(true); }, function(e){ O.err=errMsg(e); render(); }); });
   if((b=$('svSend'))) b.onclick = function(){
     V.busy = true; V.err=''; render();
     sb.rpc('set_solv_day', {p_day:orDayStr(), p_secondo:V.s2||null, p_terzo:V.s3||null, p_kind:V.sk||null}).then(function(r){
@@ -1037,15 +1125,238 @@ function bindOr(){
     sb.rpc('set_or_room', {p_day:orDayStr(), p_room:O.room, p_primo:O.p1||null, p_secondo:O.p2||null}).then(function(r){
       O.busy = false;
       if(r.error){ O.err = errMsg(r.error); return render(); }
-      O.rev++; toast('Inviato ✓'); return refresh(true);
+      O.rev++; S.plan.logLoaded = false; toast('Inviato ✓'); return refresh(true);
     }, function(e){ O.busy=false; O.err=errMsg(e); render(); });
   };
 }
 
 /* =====================================================================
+   Programma (amministratori): "Programmazione" dei turni (solo titolare) e "Sale" (correzione e registro)
+   ===================================================================== */
+function canOrEdit(){ return canOr() || isAdmin(); }
+function planWeekIdx(){
+  var today = fYmd(new Date()), i, w = S.weeks, idx = -1;
+  for(i=0;i<w.length;i++){ if(w[i].mon<=today && today<=fYmd(addD(pYmd(w[i].mon),6))) idx=i; }
+  if(idx<0){ for(i=0;i<w.length;i++){ if(w[i].mon>today){ idx=i; break; } } }
+  if(idx<0) idx = w.length-1;
+  return Math.max(0, idx);
+}
+function planDayFor(w){ var t = fYmd(new Date()); for(var i=0;i<7;i++){ if(fYmd(addD(pYmd(w.mon),i))===t) return i; } return 0; }
+function planWeek(){
+  var P = S.plan; if(!S.weeks.length) return null;
+  if(P.idx<0 || P.idx>=S.weeks.length){ P.idx = planWeekIdx(); P.day = planDayFor(S.weeks[P.idx]); }
+  var base = S.weeks[P.idx]; return P.draft[base.mon] || base;
+}
+function planDraft(){
+  var P = S.plan, base = S.weeks[P.idx];
+  if(!P.draft[base.mon]){ P.draft[base.mon] = JSON.parse(JSON.stringify(base)); P.base[base.mon] = base.v; P.cells[base.mon] = {}; }
+  return P.draft[base.mon];
+}
+function planDirtyN(){ var P = S.plan, w = S.weeks[P.idx]; return w && P.cells[w.mon] ? Object.keys(P.cells[w.mon]).length : 0; }
+// voci già usate nelle settimane pubblicate (testo + colore), dalle più frequenti
+function planFreq(){
+  var cnt = {}, ord = [];
+  S.weeks.forEach(function(w){ Object.keys(w.days||{}).forEach(function(id){ (w.days[id]||[]).forEach(function(dl){ (dl||[]).forEach(function(l){
+    if(!l || !l[0]) return; var k = String(l[0]).trim().toLowerCase(); if(!cnt[k]){ cnt[k] = {t:String(l[0]), c:l[1]||'', n:0}; ord.push(k); } cnt[k].n++;
+  }); }); }); });
+  return {cnt:cnt, ord:ord};
+}
+/* Libreria dei turni per la persona `id`: i nomi sono quelli della "Libreria turni" della console (pubblicata con i turni);
+   in testa i più usati nelle settimane pubblicate, poi gli altri. Senza libreria pubblicata: i turni più frequenti. */
+function planLibrary(id){
+  var f = planFreq(), cat = id && S.people[id] ? S.people[id].c : '', out = {freq:[], rest:[], lib:false};
+  if(S.lib && S.lib.length){
+    out.lib = true;
+    S.lib.forEach(function(x){
+      if(!x || !x.t) return;
+      if(cat && x.k && x.k.length && x.k.indexOf(cat)<0) return;
+      var hit = f.cnt[String(x.t).trim().toLowerCase()], it = {t:String(x.t), c:x.c||'', n:hit?hit.n:0};
+      (it.n ? out.freq : out.rest).push(it);
+    });
+    out.freq.sort(function(a,b){ return b.n-a.n; }); out.freq = out.freq.slice(0,12);
+    var top = {}; out.freq.forEach(function(x){ top[x.t.toLowerCase()] = 1; });
+    out.rest = out.rest.concat([]).filter(function(x){ return !top[x.t.toLowerCase()]; });
+    return out;
+  }
+  out.freq = f.ord.map(function(k){ return f.cnt[k]; }).sort(function(a,b){ return b.n-a.n; }).slice(0,30);
+  return out;
+}
+function planColors(id){
+  var seen = {}, out = [], L = planLibrary(id);
+  L.freq.concat(L.rest).forEach(function(x){ if(/^#[0-9a-fA-F]{3,8}$/.test(x.c) && !seen[x.c.toLowerCase()]){ seen[x.c.toLowerCase()] = 1; out.push(x.c); } });
+  return out.slice(0,10);
+}
+
+function planHtml(){
+  var P = S.plan, tit = isTit();
+  if(!tit) P.sec = 'sale';
+  var h = '';
+  if(tit) h += '<div class="tabs2" id="plSec"><button type="button" data-psec="prog" aria-pressed="'+(P.sec==='prog')+'">Programmazione</button><button type="button" data-psec="sale" aria-pressed="'+(P.sec==='sale')+'">Sale</button></div>';
+  return h + (P.sec==='prog' ? progHtml() : saleHtml());
+}
+
+/* ---- Programmazione ---- */
+function progHtml(){
+  var P = S.plan, w = planWeek();
+  if(!w) return '<div class="card"><div class="empty">Nessuna settimana pubblicata: la prima si crea dalla console sul computer.</div></div>';
+  var base = S.weeks[P.idx], mon = pYmd(w.mon), sun = addD(mon,6), todayS = fYmd(new Date()), i;
+  var rng = mon.getDate()+(mon.getMonth()!==sun.getMonth()?' '+MESI[mon.getMonth()]:'')+' – '+sun.getDate()+' '+MESI[sun.getMonth()]+' '+sun.getFullYear();
+  var n = planDirtyN();
+  var h = '<div class="wknav"><button class="ic" id="plPrev" aria-label="Settimana precedente"'+(P.idx<=0?' disabled':'')+'>‹</button><div class="mid"><div class="rng">'+rng+'</div><div class="pub">v.'+esc(base.v)+' · '+(base.src==='app'?'modificata dall\'app':'pubblicata')+' il '+esc(fmtTime(base.at))+'</div></div><button class="ic" id="plNext" aria-label="Settimana successiva"'+(P.idx>=S.weeks.length-1?' disabled':'')+'>›</button></div>';
+  h += '<div class="days" role="tablist">';
+  for(i=0;i<7;i++){ var d = addD(mon,i); h += '<button class="day'+(fYmd(d)===todayS?' today':'')+'" role="tab" data-pd="'+i+'" aria-selected="'+(P.day===i)+'">'+D_SHORT[i]+'<b>'+d.getDate()+'</b></button>'; }
+  h += '</div><div class="h2">'+esc(dayLabel(fYmd(addD(mon,P.day))))+'</div>';
+  catsOf(w).forEach(function(c){
+    h += '<section><div class="h2 sm">'+esc(c.label)+'</div><div class="card">';
+    c.ids.forEach(function(id){
+      var lines = linesFor(w, id, P.day), ch = P.cells[w.mon] && P.cells[w.mon][id+'|'+P.day];
+      h += '<button type="button" class="prow edit'+(ch?' chg':'')+'" data-pc="'+esc(id)+'"><div class="pname">'+esc(S.people[id].n)+(S.people[id].r?' <span class="prot">'+esc(S.people[id].r)+'</span>':'')+'</div><div class="pills">'+(lines.length?lines.map(pillHtml).join(''):'<span class="free">—</span>')+'</div><span class="pen" aria-hidden="true">✎</span></button>';
+    });
+    h += '</div></section>';
+  });
+  h += '<div class="note">Tocca una persona per aggiungere o togliere i turni di quel giorno. Le modifiche restano in bozza finché non premi <b>Pubblica</b>. Le assenze già accettate (ferie, permessi…) si gestiscono dalle Richieste.</div>';
+  h += '<div class="note warn">Pubblicando dall\'app la settimana risulta modificata dall\'app: se poi pubblichi la stessa settimana dalla <b>console sul computer</b>, la console ti avvisa prima di sostituirla (e le pubblicazioni automatiche non la toccano).</div>';
+  if(P.err) h += '<div class="err">'+esc(P.err)+'</div>';
+  if(n) h += '<div class="plbar" role="region" aria-label="Modifiche non pubblicate"><span><b>'+n+'</b> '+(n===1?'modifica':'modifiche')+' in bozza</span><button type="button" class="btn alt sm" id="plDrop"'+(P.busy?' disabled':'')+'>Annulla</button><button type="button" class="btn sm" id="plPub"'+(P.busy?' disabled':'')+'>'+(P.busy?'Pubblico…':'Pubblica')+'</button></div>';
+  return h;
+}
+function cellSheet(id, di){
+  var P = S.plan, key = id+'|'+di, d, dayName;
+  function cur(){ var w = planWeek(); return (((w.days||{})[id]||[])[di]) || []; }
+  var s = sheet('', function(){ render(); });
+  function draw(){
+    var w = planWeek(), baseLines = cur(), all = linesFor(w, id, di), lock = all.filter(function(l){ return !baseLines.some(function(b){ return String(b[0])===String(l[0]); }); });
+    var used = {}; baseLines.forEach(function(l){ used[String(l[0]).toLowerCase()] = 1; });
+    var colors = planColors(id), L = planLibrary(id);
+    function libBtns(list){ return list.filter(function(x){ return !used[x.t.toLowerCase()]; }).map(function(x){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(x.c) ? x.c : '#eef1f6'; return '<button type="button" class="pill" style="background:'+bg+'" data-lib="'+esc(x.t)+'" data-libc="'+esc(x.c)+'">+ '+esc(x.t)+'</button>'; }).join(''); }
+    s.el.innerHTML = '<h3>'+esc(S.people[id].n)+' · '+esc(dayLabel(fYmd(addD(pYmd(w.mon),di))))+'</h3>'+
+      '<div class="lbl">Turni di questo giorno</div><div class="pills edpills">'+
+      (baseLines.length ? baseLines.map(function(l,k){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : '#eef1f6'; return '<span class="pill rm" style="background:'+bg+'">'+esc(l[0])+'<button type="button" data-rm="'+k+'" aria-label="Togli '+esc(l[0])+'">✕</button></span>'; }).join('') : '<span class="free">Nessun turno</span>')+
+      lock.map(function(l){ return '<span class="pill lock" style="background:'+(/^#[0-9a-fA-F]{3,8}$/.test(l[1]||'')?l[1]:'#eef1f6')+'" title="Da una richiesta accettata">'+esc(l[0])+' <small>richiesta</small></span>'; }).join('')+'</div>'+
+      (L.lib
+        ? '<div class="lbl">Turni più usati</div><div class="lib freq">'+(libBtns(L.freq)||'<span class="empty">Nessun turno usato finora.</span>')+'</div>'+
+          '<div class="lbl">Libreria turni</div><input id="libQ" type="search" class="libq" placeholder="Cerca nella libreria…" autocomplete="off"><div class="lib all" id="libAll">'+(libBtns(L.rest)||'<span class="empty">Tutti i turni sono già nei più usati.</span>')+'</div>'
+        : '<div class="lbl">Aggiungi un turno usato di recente</div><div class="lib">'+libBtns(L.freq)+'</div><div class="note">La libreria della console arriva con la prossima pubblicazione dei turni.</div>')+
+      '<div class="lbl">Oppure scrivi un testo libero</div><div class="row"><input id="edTxt" type="text" maxlength="60" placeholder="Es. Sala 2, Ambulatorio…" autocomplete="off"><button type="button" class="btn sm" id="edAdd">Aggiungi</button></div>'+
+      (colors.length?'<div class="swatches" id="edCols" aria-label="Colore">'+colors.map(function(c,k){ return '<button type="button" data-col="'+c+'" style="background:'+c+'" aria-pressed="'+(P.col===c)+'" aria-label="Colore '+(k+1)+'"></button>'; }).join('')+'<button type="button" data-col="" class="none" aria-pressed="'+(!P.col)+'">nessuno</button></div>':'')+
+      '<button type="button" class="btn alt" id="edClose">Fatto</button>';
+    var q = s.el.querySelector('#libQ'); if(q) q.oninput = function(){ var v = q.value.trim().toLowerCase(); s.el.querySelectorAll('#libAll [data-lib]').forEach(function(b){ b.hidden = !!v && b.dataset.lib.toLowerCase().indexOf(v)<0; }); };
+    s.el.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ edit(function(arr){ arr.splice(+b.dataset.rm,1); }); }; });
+    s.el.querySelectorAll('[data-lib]').forEach(function(b){ b.onclick = function(){ edit(function(arr){ arr.push([b.dataset.lib, b.dataset.libc||null]); }); }; });
+    s.el.querySelectorAll('[data-col]').forEach(function(b){ b.onclick = function(){ P.col = b.dataset.col; draw(); }; });
+    var add = function(){ var t = ($('edTxt').value||'').trim().slice(0,60); if(!t) return; edit(function(arr){ if(!arr.some(function(l){ return String(l[0]).toLowerCase()===t.toLowerCase(); })) arr.push([t, P.col||null]); }); };
+    $('edAdd').onclick = add; $('edTxt').onkeydown = function(e){ if(e.key==='Enter'){ e.preventDefault(); add(); } };
+    $('edClose').onclick = function(){ s.close(); };
+  }
+  function edit(fn){
+    var dr = planDraft(); dr.days = dr.days || {};
+    if(!dr.days[id]) dr.days[id] = [[],[],[],[],[],[],[]];
+    var arr = dr.days[id][di] = (dr.days[id][di]||[]).map(function(l){ return l.slice(); });
+    fn(arr);
+    var base = S.weeks[P.idx], same = JSON.stringify(((base.days||{})[id]||[])[di]||[]) === JSON.stringify(arr);
+    if(same) delete P.cells[base.mon][key]; else P.cells[base.mon][key] = 1;
+    P.err = ''; draw();
+  }
+  draw();
+}
+function progPublish(){
+  var P = S.plan, base = S.weeks[P.idx], dr = P.draft[base.mon]; if(!dr || P.busy) return;
+  P.busy = true; P.err = ''; render();
+  sb.from('weeks').select('version').eq('mon', base.mon).maybeSingle().then(function(r0){
+    if(r0.error) throw r0.error;
+    if(!r0.data || r0.data.version !== P.base[base.mon]) throw new Error('La settimana è stata aggiornata nel frattempo (versione '+(r0.data?r0.data.version:'?')+'). Annulla la bozza e rifai le modifiche.');
+    var data = JSON.parse(JSON.stringify(dr)); delete data.v; delete data.at; delete data.src;
+    return sb.rpc('save_week_app', {p_mon:base.mon, p_data:data});
+  }).then(function(r){
+    if(r.error) throw r.error;
+    delete P.draft[base.mon]; delete P.cells[base.mon]; delete P.base[base.mon]; P.busy = false;
+    toast('Turni aggiornati ✓ (v.'+(r.data && r.data.v)+')'); return refresh(true);
+  }).catch(function(e){ P.busy = false; P.err = errMsg(e); render(); });
+}
+
+/* ---- Sale: panoramica della settimana, correzione e registro ---- */
+function planRooms(){ var r = orRoomList(); if(!canSolv()) r = r.filter(function(x){ return x!==SOLV_ROOM; }); return r; }
+function shortName(id){ var n = nameOfStaff(id); return n==='—' ? n : n.split(/\s+/)[0]; }
+function saleOverview(){
+  var O = S.or, mon = pYmd(O.mon), todayS = fYmd(new Date()), rooms = planRooms(), i;
+  var h = '<section><div class="h2">Settimana in sintesi</div><div class="scroll"><table class="tbl ov"><thead><tr><th class="nm"></th>';
+  for(i=0;i<7;i++){ var dd = addD(mon,i); h += '<th class="'+(fYmd(dd)===todayS?'today':'')+'">'+D_SHORT[i]+' '+dd.getDate()+'</th>'; }
+  h += '</tr></thead><tbody>';
+  rooms.forEach(function(r){
+    h += '<tr><td class="nm">'+esc(r)+'</td>';
+    for(var k=0;k<7;k++){
+      var ds = fYmd(addD(mon,k)), cell = '';
+      if(r===SOLV_ROOM){ var sv = solvOn(ds); if(sv) cell = (sv.secondo?'2° '+esc(shortName(sv.secondo)):'')+(sv.terzo?'<br>3° '+esc(shortName(sv.terzo)):''); }
+      else {
+        var p = O.rows.filter(function(x){ return x.day===ds && x.room===r && x.role==='primo'; })[0], a = O.rows.filter(function(x){ return x.day===ds && x.room===r && x.role==='aiuto'; })[0];
+        cell = (p?'1° '+esc(shortName(p.staff_id)):'')+(a?'<br>2° '+esc(shortName(a.staff_id)):'');
+      }
+      h += '<td><button type="button" class="ovc'+(cell?'':' empty')+(O.day===k && O.room===r?' sel':'')+'" data-ovd="'+k+'" data-ovr="'+esc(r)+'">'+(cell||'+')+'</button></td>';
+    }
+    h += '</tr>';
+  });
+  return h+'</tbody></table></div><div class="note">Tocca una casella per correggere quel giorno e quella sala qui sotto. Ogni modifica resta nel registro con chi l\'ha fatta e quando.</div></section>';
+}
+function roleTxt(r){ return r==='primo' ? '1° operatore' : r==='aiuto' ? '2° operatore' : (r||''); }
+function logRowHtml(x){
+  var d = esc(dayLabel(x.day)), who = esc(x.actor_name||'—')+(x.by_admin?' <span class="chip a">amm.</span>':'');
+  var what = x.act==='inserita' ? '<b>'+esc(x.staff_name)+'</b> inserito in '+esc(x.new_room)+' come '+roleTxt(x.new_role)
+           : x.act==='rimossa' ? '<b>'+esc(x.staff_name)+'</b> tolto da '+esc(x.old_room)+' ('+roleTxt(x.old_role)+')'
+           : '<b>'+esc(x.staff_name)+'</b>: '+esc(x.old_room)+' ('+roleTxt(x.old_role)+') → '+esc(x.new_room)+' ('+roleTxt(x.new_role)+')';
+  return '<div class="logrow"><div class="lt"><span>'+esc(fmtTime(x.at))+'</span><span>'+who+'</span></div><div>'+what+' <span class="note">· giorno '+d+'</span></div></div>';
+}
+function saleLogHtml(){
+  var P = S.plan, h = '<section><button type="button" class="btn alt" id="lgTog">'+(P.showLog?'Nascondi il registro delle modifiche':'Registro delle modifiche')+'</button>';
+  if(P.showLog){
+    var mon = S.or.mon, sun = fYmd(addD(pYmd(mon),6));
+    var rows = P.logAll ? P.log : P.log.filter(function(x){ return x.day>=mon && x.day<=sun; });
+    h += '<div class="tabs2 lgf"><button type="button" id="lgWk" aria-pressed="'+(!P.logAll)+'">Questa settimana</button><button type="button" id="lgAll" aria-pressed="'+P.logAll+'">Tutto</button></div>'+
+      '<div class="card">'+(P.logBusy&&!P.logLoaded ? '<div class="empty">Carico il registro…</div>' : rows.length ? rows.slice(0,P.logAll?150:80).map(logRowHtml).join('') : '<div class="empty">Nessuna modifica registrata'+(P.logAll?'':' per i giorni di questa settimana')+'.</div>')+'</div>'+
+      (P.logErr?'<div class="err">'+esc(P.logErr)+'</div>':'')+
+      '<div class="note">Il registro non si può modificare né cancellare: conserva anche le indicazioni dei Master SalaOp precedenti alle tue correzioni.</div>';
+  }
+  return h+'</section>';
+}
+function planLoadLog(){
+  var P = S.plan; if(P.logBusy || P.logLoaded) return;
+  P.logBusy = true; P.logErr = '';
+  sb.from('or_log').select('id,at,actor_name,by_admin,act,day,staff_name,old_room,old_role,new_room,new_role').order('at',{ascending:false}).limit(400).then(function(r){
+    P.logBusy = false;
+    if(r.error){ P.logErr = errMsg(r.error); return render(); }
+    P.log = r.data || []; P.logLoaded = true; render();
+  }, function(e){ P.logBusy = false; P.logErr = errMsg(e); render(); });
+}
+function saleHtml(){
+  orInit(); orSync();
+  var O = S.or, ds = orDayStr(), room = O.room, last = '', row = O.rows.filter(function(x){ return x.day===ds && x.room===room; }).sort(function(a,b){ return a.updated_at<b.updated_at?1:-1; })[0];
+  if(row) last = '<div class="note">Ultima modifica a questa sala: <b>'+esc(row.set_by?nameOfStaff(row.set_by):'—')+'</b>, '+esc(fmtTime(row.updated_at))+'.</div>';
+  return saleOverview() + '<div class="h2">Correggi</div>' + orHtml() + last + saleLogHtml();
+}
+function bindPlan(){
+  var P = S.plan, b;
+  document.querySelectorAll('[data-psec]').forEach(function(x){ x.onclick = function(){ P.sec = x.dataset.psec; P.err = ''; render(); window.scrollTo(0,0); }; });
+  if(P.sec==='prog'){
+    function go(n){ var k = P.idx+n; if(k<0||k>=S.weeks.length) return; P.idx = k; P.day = planDayFor(S.weeks[k]); P.err = ''; render(); }
+    if((b=$('plPrev'))) b.onclick = function(){ go(-1); };
+    if((b=$('plNext'))) b.onclick = function(){ go(1); };
+    document.querySelectorAll('[data-pd]').forEach(function(x){ x.onclick = function(){ P.day = +x.dataset.pd; render(); }; });
+    document.querySelectorAll('[data-pc]').forEach(function(x){ x.onclick = function(){ cellSheet(x.dataset.pc, P.day); }; });
+    if((b=$('plPub'))) b.onclick = progPublish;
+    if((b=$('plDrop'))) b.onclick = function(){ var w = S.weeks[P.idx]; delete P.draft[w.mon]; delete P.cells[w.mon]; delete P.base[w.mon]; P.err = ''; render(); };
+    return;
+  }
+  bindOr();
+  document.querySelectorAll('[data-ovd]').forEach(function(x){ x.onclick = function(){ S.or.day = +x.dataset.ovd; S.or.room = x.dataset.ovr; S.or.err = ''; render(); }; });
+  if((b=$('lgTog'))) b.onclick = function(){ P.showLog = !P.showLog; if(P.showLog) planLoadLog(); render(); };
+  if((b=$('lgWk'))) b.onclick = function(){ P.logAll = false; render(); };
+  if((b=$('lgAll'))) b.onclick = function(){ P.logAll = true; render(); };
+  if(P.showLog) planLoadLog();
+}
+
+/* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.17';
+var APP_VERSION = '2026.11.20';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
@@ -1053,7 +1364,7 @@ function solvKindChip(k){ return k ? '<span class="chip a">'+esc(k)+'</span>' : 
 function solvHead(){ return '<div class="sth"><span>Data</span><span>2° operatore</span><span>3° operatore</span><span>Tipo</span></div>'; }
 function solvRow(r){
   var today = fYmd(new Date()), yr = new Date().getFullYear(), y = +r.day.slice(0,4);
-  return '<div class="str"><span class="sd">'+esc(dayLabel(r.day))+(y!==yr?' '+y:'')+(r.day>today?'<small>in programma</small>':'')+'</span><span>'+esc(r.secondo?nameOfStaff(r.secondo):'—')+'</span><span>'+esc(r.terzo?nameOfStaff(r.terzo):'—')+'</span><span>'+solvKindChip(r.kind)+'</span></div>';
+  return '<div class="str"><span class="sd">'+esc(dayLabel(r.day))+(y!==yr?' '+y:'')+(r.day>=today?(r.day>today?'<small>in programma</small>':'<small>oggi</small>')+'<button type="button" class="lnk" data-svx="'+esc(r.day)+'">Cancella</button>':'')+'</span><span>'+esc(r.secondo?nameOfStaff(r.secondo):'—')+'</span><span>'+esc(r.terzo?nameOfStaff(r.terzo):'—')+'</span><span>'+solvKindChip(r.kind)+'</span></div>';
 }
 function solvTable(rows){
   if(!rows.length) return '<div class="empty">Nessuna assegnazione registrata.</div>';
@@ -1071,7 +1382,7 @@ function solvRoomHtml(ds, people){
   h += '<div class="h2">Tipologia</div><div class="opts" id="svKinds">'+['ARTI','RPS'].map(function(k){ return '<button type="button" data-sk="'+k+'" aria-pressed="'+(V.sk===k)+'">'+k+'</button>'; }).join('')+'</div>';
   var had = !!solvOn(ds), empty = !V.s2 && !V.s3;
   h += '<div class="err" id="svErr">'+esc(V.err)+'</div><button class="btn" id="svSend"'+(V.busy||(empty&&!had)?' disabled':'')+'>'+(V.busy?'Invio in corso…':(empty&&had?'Svuota la sala':'Invia'))+'</button>'+
-    '<div class="note">Puoi scegliere anche solo uno dei due operatori; la tipologia (ARTI o RPS) è facoltativa e si toglie toccandola di nuovo. Per ogni giorno c\'è una sola sala solventi AG: reinviando si sostituisce quanto indicato.</div>';
+    (had?'<button type="button" class="btn alt" id="svDel">Cancella la sala di questo giorno</button>':'')+'<div class="note">Puoi scegliere anche solo uno dei due operatori; la tipologia (ARTI o RPS) è facoltativa e si toglie toccandola di nuovo. Per ogni giorno c\'è una sola sala solventi AG: reinviando si sostituisce quanto indicato.</div>';
   if(canSolvTab()) h += '<section><div class="h2">Ultime sale solventi AG</div><div class="card">'+solvTable(V.rows.slice(0,8))+'</div><div class="note">Elenco completo e percentuali dell\'anno nella scheda <b>Solventi AG</b> (icona del dollaro).</div></section>';
   return h;
 }
@@ -1126,8 +1437,17 @@ function solvHist(){
   });
   return '<div class="stbl">'+solvHead()+out+'</div>';
 }
+function bindSolvDel(){
+  var V = S.solv;
+  document.querySelectorAll('[data-svx]').forEach(function(x){ x.onclick = function(){
+    if(x.dataset.arm!=='1'){ x.dataset.arm='1'; x.textContent='Conferma'; return; }
+    x.disabled = true;
+    sb.rpc('set_solv_day', {p_day:x.dataset.svx, p_secondo:null, p_terzo:null, p_kind:null}).then(function(r){ if(r.error) return toast(errMsg(r.error)); V.rev++; toast('Sala cancellata ✓'); return refresh(true); }, function(e){ toast(errMsg(e)); });
+  }; });
+}
 function bindSolv(){
   var V = S.solv, b;
+  bindSolvDel();
   document.querySelectorAll('[data-sm]').forEach(function(x){ x.onclick = function(){ V.mode = x.dataset.sm; render(); }; });
   function goYear(y){
     var cur = new Date().getFullYear(); if(y>cur || y<cur-15) return; V.yr = y; if(y===cur || V.yrData[y]) return render();

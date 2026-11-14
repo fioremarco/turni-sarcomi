@@ -229,7 +229,26 @@ async function setNtfy(t){
 async function testNtfy(){ var r = await sb.rpc('send_test_notification'); if(r.error) throw r.error; }
 async function getNotifRules(){ var r = await sb.from('app_state').select('value').eq('key','notif_rules').maybeSingle(); if(r.error) throw r.error; return (r.data && r.data.value) || null; }
 async function setNotifRules(rules){ var r = await sb.rpc('set_notif_rules', {p_rules:rules}); if(r.error) throw r.error; return r.data; }
-async function publishStaff(payload){
+// Settimane corrette dall'app (campo src = "app"): la pubblicazione dalla console le sostituirebbe con la versione del computer.
+// Pubblicazione manuale: chiede conferma. Pubblicazione automatica: lascia quelle settimane come sono.
+async function publishStaff(payload, auto){
+  // libreria dei turni: serve all'app per la Programmazione (nomi e colori della console)
+  if(payload.lib && payload.lib.length){ try{ await sb.from('app_state').upsert({key:'turni_lib', value:{lib:payload.lib, at:new Date().toISOString()}, updated_at:new Date().toISOString()}); }catch(e){} }
+  var ws = payload.weeks || [], clash = [];
+  if(ws.length){
+    var mons = ws.map(function(w){ return w.mon; }).sort();
+    var q = await sb.from('weeks').select('mon,data').gte('mon', mons[0]).lte('mon', mons[mons.length-1]);
+    if(!q.error) clash = (q.data||[]).filter(function(x){ return x.data && x.data.src==='app' && mons.indexOf(x.mon)>=0; }).map(function(x){ return x.mon; });
+  }
+  if(clash.length){
+    var lst = clash.map(function(m){ var p = m.split('-'); return p[2]+'/'+p[1]; }).join(', ');
+    if(auto){
+      payload = Object.assign({}, payload, {weeks: ws.filter(function(w){ return clash.indexOf(w.mon)<0; })});
+      if(!payload.weeks.length) return {weeks:0, new_people:0, skipped:clash.length};
+    } else if(!window.confirm('Le settimane con inizio '+lst+' sono state modificate dall\'app dopo la tua ultima pubblicazione.\n\nSe continui, la tua versione del computer sostituisce quelle modifiche.\n\nVuoi pubblicare lo stesso?')){
+      throw new Error('Pubblicazione annullata: le settimane con inizio '+lst+' sono state modificate dall\'app');
+    }
+  }
   var r = await sb.rpc('publish_schedule', {p_people:payload.people, p_cats:payload.cats, p_weeks:payload.weeks});
   if(r.error) throw r.error; return r.data;
 }
@@ -412,6 +431,7 @@ async function startAdmin(me){
     getNtfy: getNtfy, setNtfy: setNtfy, testNtfy: testNtfy,
     getNotifRules: getNotifRules, setNotifRules: setNotifRules
   };
+  window.__admEnv = envA;
   var stage = $('stage'); stage.innerHTML = '';
   stage.appendChild($('tpl-admin').content.cloneNode(true));
   var bar = document.createElement('div'); bar.className = 'adm-bar no-print';
