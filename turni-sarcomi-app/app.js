@@ -68,7 +68,7 @@ var S = {
   solv:{rows:[], end:false, shown:15, mode:'all', yr:0, yrData:{}, yrBusy:false, s2:'', s3:'', sk:'', day:'', err:'', busy:false, selKey:'', rev:0},
   perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', wmon:'', wk:{}, brush:null, note:'', busy:false, err:''},
   adm:{tab:'todo', busy:false},
-  plan:{sec:'prog', idx:-1, day:0, draft:{}, base:{}, cells:{}, col:'', busy:false, err:'', showLog:false, logAll:false, log:[], logLoaded:false, logBusy:false, logErr:''},
+  plan:{sec:'prog', idx:-1, mon:'', day:0, draft:{}, base:{}, cells:{}, col:'', busy:false, err:'', showLog:false, logAll:false, log:[], logLoaded:false, logBusy:false, logErr:''},
   push:{key:'', ready:false, on:false, busy:false, msg:''},
   rules:null, notif:{busy:false, msg:''}, go:''
 };
@@ -294,6 +294,7 @@ function render(){
   $('who').onclick = profileSheet;
   document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv'||S.tab==='plan') refresh(true); }; });
   if(locked) bindLock(); else if(S.tab==='cal') bindCal(); else if(S.tab==='perm') bindPerm(); else if(S.tab==='req') bindReq(); else if(S.tab==='sala') bindOr(); else if(S.tab==='plan') bindPlan(); else if(S.tab==='solv') bindSolv(); else if(S.tab==='set') bindSet(); else bindAdm();
+  var np = document.querySelector('.nav-pill'); if(np) document.documentElement.style.setProperty('--navH', (np.offsetHeight + 10)+'px');
   if(keepScroll) window.scrollTo(0, keepScroll);
 }
 
@@ -1134,25 +1135,51 @@ function bindOr(){
    Programma (amministratori): "Programmazione" dei turni (solo titolare) e "Sale" (correzione e registro)
    ===================================================================== */
 function canOrEdit(){ return canOr() || isAdmin(); }
+/* Elenco delle settimane della Programmazione: quelle pubblicate + quelle "vuote" (non ancora pubblicate) per arrivare fino a 12 settimane dopo l'ultima.
+   Le vuote partono con lo stesso elenco di persone dell'ultima settimana pubblicata e si pubblicano dall'app (la creano). */
+function planMonOf(d){ var x = pYmd(typeof d==='string' ? d : fYmd(d)); return fYmd(addD(x, -((x.getDay()+6)%7))); }
+function planList(){
+  var today = fYmd(new Date()), c = S._pl;
+  if(c && c.src===S.weeks && c.today===today && c.people===S.people) return c.list;
+  var pub = S.weeks, by = {}, list = [], i;
+  if(!pub.length && !Object.keys(S.people||{}).length){ S._pl = {src:S.weeks, today:today, people:S.people, list:[]}; return []; }
+  pub.forEach(function(w){ by[w.mon] = w; });
+  var curMon = planMonOf(today), first = pub.length ? pub[0].mon : curMon, last = pub.length ? pub[pub.length-1].mon : curMon;
+  if(curMon < first) first = curMon;
+  var end = fYmd(addD(pYmd(last > curMon ? last : curMon), 84));
+  function tmplFor(mon){
+    var t = null; pub.forEach(function(w){ if(w.mon<mon) t = w; }); if(!t) t = pub[0] || null;
+    var order = t ? (t.order||[]).slice() : Object.keys(S.people||{});
+    return {order:order.filter(function(id){ return S.people[id]; }), roles: t && t.roles ? JSON.parse(JSON.stringify(t.roles)) : undefined};
+  }
+  for(var m = first; m <= end; m = fYmd(addD(pYmd(m), 7))){
+    if(by[m]) list.push(by[m]);
+    else { var tp = tmplFor(m), v = {mon:m, v:0, at:null, order:tp.order, days:{}, virtual:true}; if(tp.roles) v.roles = tp.roles; list.push(v); }
+  }
+  S._pl = {src:S.weeks, today:today, people:S.people, list:list};
+  return list;
+}
+function planBase(){ var P = S.plan, L = planList(); return L[P.idx] || L[0] || null; }
+function planSel(k){ var P = S.plan, L = planList(); if(k<0 || k>=L.length) return; P.idx = k; P.mon = L[k].mon; P.day = planDayFor(L[k]); }
 function planWeekIdx(){
-  var today = fYmd(new Date()), i, w = S.weeks, idx = -1;
-  for(i=0;i<w.length;i++){ if(w[i].mon<=today && today<=fYmd(addD(pYmd(w[i].mon),6))) idx=i; }
-  if(idx<0){ for(i=0;i<w.length;i++){ if(w[i].mon>today){ idx=i; break; } } }
-  if(idx<0) idx = w.length-1;
+  var today = fYmd(new Date()), L = planList(), i, idx = -1;
+  for(i=0;i<L.length;i++){ if(L[i].mon<=today && today<=fYmd(addD(pYmd(L[i].mon),6))) idx=i; }
+  if(idx<0) idx = L.length-1;
   return Math.max(0, idx);
 }
 function planDayFor(w){ var t = fYmd(new Date()); for(var i=0;i<7;i++){ if(fYmd(addD(pYmd(w.mon),i))===t) return i; } return 0; }
 function planWeek(){
-  var P = S.plan; if(!S.weeks.length) return null;
-  if(P.idx<0 || P.idx>=S.weeks.length){ P.idx = planWeekIdx(); P.day = planDayFor(S.weeks[P.idx]); }
-  var base = S.weeks[P.idx]; return P.draft[base.mon] || base;
+  var P = S.plan, L = planList(); if(!L.length) return null;
+  if(P.mon){ var k = -1; for(var q=0;q<L.length;q++){ if(L[q].mon===P.mon){ k = q; break; } } if(k>=0) P.idx = k; else P.idx = -1; }
+  if(P.idx<0 || P.idx>=L.length){ P.idx = planWeekIdx(); P.mon = L[P.idx].mon; P.day = planDayFor(L[P.idx]); }
+  var base = L[P.idx]; return P.draft[base.mon] || base;
 }
 function planDraft(){
-  var P = S.plan, base = S.weeks[P.idx];
+  var P = S.plan, base = planBase();
   if(!P.draft[base.mon]){ P.draft[base.mon] = JSON.parse(JSON.stringify(base)); P.base[base.mon] = base.v; P.cells[base.mon] = {}; }
   return P.draft[base.mon];
 }
-function planDirtyN(){ var P = S.plan, w = S.weeks[P.idx]; return w && P.cells[w.mon] ? Object.keys(P.cells[w.mon]).length : 0; }
+function planDirtyN(){ var P = S.plan, w = planBase(); return w && P.cells[w.mon] ? Object.keys(P.cells[w.mon]).length : 0; }
 // voci già usate nelle settimane pubblicate (testo + colore), dalle più frequenti
 function planFreq(){
   var cnt = {}, ord = [];
@@ -1196,28 +1223,64 @@ function planHtml(){
 }
 
 /* ---- Programmazione ---- */
+function plKey(l){ return String(l && l[0]||'').trim().toLowerCase(); }
+// stato di una cella: pubblicato / nuovo (in bozza) / tolto (in bozza), con richieste in sospeso e suggerimenti del Master
+function planCell(w, id, di){
+  var P = S.plan, base = (((planBase()||{}).days||{})[id]||[])[di]||[], cur = (((w||{}).days||{})[id]||[])[di]||[], bm = {}, cm = {};
+  base.forEach(function(l){ bm[plKey(l)] = 1; }); cur.forEach(function(l){ cm[plKey(l)] = 1; });
+  var all = linesFor(w, id, di), curKeys = {}; cur.forEach(function(l){ curKeys[plKey(l)] = 1; });
+  return {
+    pub: all.filter(function(l){ return bm[plKey(l)] || !curKeys[plKey(l)]; }),   // pubblicate + richieste accettate (già visibili nel calendario)
+    neu: cur.filter(function(l){ return !bm[plKey(l)]; }),
+    gone: base.filter(function(l){ return !cm[plKey(l)]; })
+  };
+}
+function planPending(id, ds){
+  var map = staffIdByKey(), out = [];
+  S.props.forEach(function(p){
+    if(p.status!=='pending' || map[p.staff_id]!==id) return;
+    (p.items||[]).forEach(function(it){ if(it.d===ds && KINDS[it.k]) out.push(KINDS[it.k].t + (it.h ? ' '+it.h : '')); });
+  });
+  return out;
+}
+function planSugg(id, ds){
+  var map = staffIdByKey(), out = [];
+  S.or.rows.forEach(function(r){ if(r.day===ds && map[r.staff_id]===id) out.push(r.room+' · '+(r.role==='primo'?'1° op.':'2° op.')); });
+  if(canSolv()){ var sv = solvOn(ds); if(sv){ if(sv.secondo && map[sv.secondo]===id) out.push(SOLV_ROOM+' · 2° op.'); if(sv.terzo && map[sv.terzo]===id) out.push(SOLV_ROOM+' · 3° op.'); } }
+  return out;
+}
+function planLegend(){
+  return '<div class="pllegend" aria-label="Legenda"><span class="pill" style="background:#dff3e5">Pubblicato</span><span class="pill new" style="background:#fff3d6">Nuovo da pubblicare</span><span class="pill gone" style="background:#eef1f6">Tolto da pubblicare</span><span class="pill sugg">Suggerito dal Master</span><span class="pill pend">Richiesta in attesa</span></div>';
+}
 function progHtml(){
   var P = S.plan, w = planWeek();
   if(!w) return '<div class="card"><div class="empty">Nessuna settimana pubblicata: la prima si crea dalla console sul computer.</div></div>';
-  var base = S.weeks[P.idx], mon = pYmd(w.mon), sun = addD(mon,6), todayS = fYmd(new Date()), i;
+  var base = planBase(), mon = pYmd(w.mon), sun = addD(mon,6), todayS = fYmd(new Date()), i;
   var rng = mon.getDate()+(mon.getMonth()!==sun.getMonth()?' '+MESI[mon.getMonth()]:'')+' – '+sun.getDate()+' '+MESI[sun.getMonth()]+' '+sun.getFullYear();
   var n = planDirtyN();
-  var h = '<div class="wknav"><button class="ic" id="plPrev" aria-label="Settimana precedente"'+(P.idx<=0?' disabled':'')+'>‹</button><div class="mid"><div class="rng">'+rng+'</div><div class="pub">v.'+esc(base.v)+' · '+(base.src==='app'?'modificata dall\'app':'pubblicata')+' il '+esc(fmtTime(base.at))+'</div></div><button class="ic" id="plNext" aria-label="Settimana successiva"'+(P.idx>=S.weeks.length-1?' disabled':'')+'>›</button></div>';
+  var h = '<div class="wknav"><button class="ic" id="plPrev" aria-label="Settimana precedente"'+(P.idx<=0?' disabled':'')+'>‹</button><div class="mid"><div class="rng">'+rng+'</div><div class="pub">'+(base.virtual?'<b>Non ancora pubblicata</b>':'v.'+esc(base.v)+' · '+(base.src==='app'?'modificata dall\'app':'pubblicata')+' il '+esc(fmtTime(base.at)))+'</div></div><button class="ic" id="plNext" aria-label="Settimana successiva"'+(P.idx>=planList().length-1?' disabled':'')+'>›</button></div>';
+  if(base.virtual && !P.draft[base.mon]) h += '<div class="plnew"><span>Settimana <b>non ancora pubblicata</b>: tocca una persona per inserire i turni, oppure parti da quelli della settimana prima.</span><button type="button" class="btn alt sm" id="plCopy">Copia dalla precedente</button></div>';
+  if(P.err) h += '<div class="err plerr">'+esc(P.err)+'</div>';
+  if(n) h += '<div class="plstat"><span><b>'+n+'</b> '+(n===1?'modifica':'modifiche')+' non ancora pubblicat'+(n===1?'a':'e')+'</span><button type="button" class="btn sm" id="plPub2"'+(P.busy?' disabled':'')+'>Pubblica</button></div>';
   h += '<div class="days" role="tablist">';
   for(i=0;i<7;i++){ var d = addD(mon,i); h += '<button class="day'+(fYmd(d)===todayS?' today':'')+'" role="tab" data-pd="'+i+'" aria-selected="'+(P.day===i)+'">'+D_SHORT[i]+'<b>'+d.getDate()+'</b></button>'; }
-  h += '</div><div class="h2">'+esc(dayLabel(fYmd(addD(mon,P.day))))+'</div>';
+  h += '</div><div class="h2">'+esc(dayLabel(fYmd(addD(mon,P.day))))+'</div>'+planLegend();
   catsOf(w).forEach(function(c){
     h += '<section><div class="h2 sm">'+esc(c.label)+'</div><div class="card">';
     c.ids.forEach(function(id){
-      var lines = linesFor(w, id, P.day), ch = P.cells[w.mon] && P.cells[w.mon][id+'|'+P.day];
-      h += '<button type="button" class="prow edit'+(ch?' chg':'')+'" data-pc="'+esc(id)+'"><div class="pname">'+esc(S.people[id].n)+(S.people[id].r?' <span class="prot">'+esc(S.people[id].r)+'</span>':'')+'</div><div class="pills">'+(lines.length?lines.map(pillHtml).join(''):'<span class="free">—</span>')+'</div><span class="pen" aria-hidden="true">✎</span></button>';
+      var cell = planCell(w, id, P.day), dsx = fYmd(addD(mon,P.day)), pend = planPending(id, dsx), sug = planSugg(id, dsx), ch = P.cells[w.mon] && P.cells[w.mon][id+'|'+P.day];
+      var pillsH = cell.pub.map(pillHtml).join('') +
+        cell.neu.map(function(l){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : '#eef1f6'; return '<span class="pill new" style="background:'+bg+'" title="Nuovo: non ancora pubblicato">'+esc(l[0])+'</span>'; }).join('') +
+        cell.gone.map(function(l){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : '#eef1f6'; return '<span class="pill gone" style="background:'+bg+'" title="Tolto: sparirà alla pubblicazione">'+esc(l[0])+'</span>'; }).join('') +
+        pend.map(function(t){ return '<span class="pill pend" title="Richiesta in attesa di decisione">'+esc(t)+'</span>'; }).join('') +
+        sug.map(function(t){ return '<span class="pill sugg" title="Suggerimento del Master SalaOp: non è pubblicato né stampato">'+esc(t)+'</span>'; }).join('');
+      h += '<button type="button" class="prow edit'+(ch?' chg':'')+'" data-pc="'+esc(id)+'"><div class="pname">'+esc(S.people[id].n)+(S.people[id].r?' <span class="prot">'+esc(S.people[id].r)+'</span>':'')+'</div><div class="pills">'+(pillsH || '<span class="free">—</span>')+'</div><span class="pen" aria-hidden="true">✎</span></button>';
     });
     h += '</div></section>';
   });
-  h += '<div class="note">Tocca una persona per aggiungere o togliere i turni di quel giorno. Le modifiche restano in bozza finché non premi <b>Pubblica</b>. Le assenze già accettate (ferie, permessi…) si gestiscono dalle Richieste.</div>';
+  h += '<div class="note">Tocca una persona per aggiungere o togliere i turni di quel giorno. Le modifiche restano in bozza finché non premi <b>Pubblica</b>. Le ferie e i permessi <b>accettati</b> sono già nel calendario pubblicato; quelli <b>in attesa</b> sono tratteggiati. I suggerimenti del Master SalaOp si vedono solo qui e in Sala Op: non vanno nel calendario né nella stampa.</div>';
   h += '<div class="note warn">Pubblicando dall\'app la settimana risulta modificata dall\'app: se poi pubblichi la stessa settimana dalla <b>console sul computer</b>, la console ti avvisa prima di sostituirla (e le pubblicazioni automatiche non la toccano).</div>';
-  if(P.err) h += '<div class="err">'+esc(P.err)+'</div>';
-  if(n) h += '<div class="plbar" role="region" aria-label="Modifiche non pubblicate"><span><b>'+n+'</b> '+(n===1?'modifica':'modifiche')+' in bozza</span><button type="button" class="btn alt sm" id="plDrop"'+(P.busy?' disabled':'')+'>Annulla</button><button type="button" class="btn sm" id="plPub"'+(P.busy?' disabled':'')+'>'+(P.busy?'Pubblico…':'Pubblica')+'</button></div>';
+  if(n) h += '<div class="plbar" role="region" aria-label="Modifiche non pubblicate"><span><b>'+n+'</b> '+(n===1?'modifica':'modifiche')+' in bozza</span><button type="button" class="btn alt sm" id="plDrop"'+(P.busy?' disabled':'')+'>Annulla</button><button type="button" class="btn sm" id="plPub"'+(P.busy?' disabled':'')+'>'+(P.busy?'Pubblico…':'Pubblica')+'</button></div><div class="plspace" aria-hidden="true"></div>';
   return h;
 }
 function cellSheet(id, di){
@@ -1227,12 +1290,15 @@ function cellSheet(id, di){
   function draw(){
     var w = planWeek(), baseLines = cur(), all = linesFor(w, id, di), lock = all.filter(function(l){ return !baseLines.some(function(b){ return String(b[0])===String(l[0]); }); });
     var used = {}; baseLines.forEach(function(l){ used[String(l[0]).toLowerCase()] = 1; });
+    var dsx = fYmd(addD(pYmd(w.mon),di)), sug = planSugg(id, dsx), pend = planPending(id, dsx);
     var colors = planColors(id), L = planLibrary(id);
     function libBtns(list){ return list.filter(function(x){ return !used[x.t.toLowerCase()]; }).map(function(x){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(x.c) ? x.c : '#eef1f6'; return '<button type="button" class="pill" style="background:'+bg+'" data-lib="'+esc(x.t)+'" data-libc="'+esc(x.c)+'">+ '+esc(x.t)+'</button>'; }).join(''); }
     s.el.innerHTML = '<h3>'+esc(S.people[id].n)+' · '+esc(dayLabel(fYmd(addD(pYmd(w.mon),di))))+'</h3>'+
       '<div class="lbl">Turni di questo giorno</div><div class="pills edpills">'+
       (baseLines.length ? baseLines.map(function(l,k){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : '#eef1f6'; return '<span class="pill rm" style="background:'+bg+'">'+esc(l[0])+'<button type="button" data-rm="'+k+'" aria-label="Togli '+esc(l[0])+'">✕</button></span>'; }).join('') : '<span class="free">Nessun turno</span>')+
       lock.map(function(l){ return '<span class="pill lock" style="background:'+(/^#[0-9a-fA-F]{3,8}$/.test(l[1]||'')?l[1]:'#eef1f6')+'" title="Da una richiesta accettata">'+esc(l[0])+' <small>richiesta</small></span>'; }).join('')+'</div>'+
+      (sug.length?'<div class="lbl">Suggerito dal Master SalaOp (solo promemoria: non va nel calendario né nella stampa)</div><div class="pills">'+sug.map(function(t){ return '<span class="pill sugg">'+esc(t)+'</span>'; }).join('')+'</div>':'')+
+      (pend.length?'<div class="lbl">Richieste in attesa di decisione</div><div class="pills">'+pend.map(function(t){ return '<span class="pill pend">'+esc(t)+'</span>'; }).join('')+'</div>':'')+
       (L.lib
         ? '<div class="lbl">Turni più usati</div><div class="lib freq">'+(libBtns(L.freq)||'<span class="empty">Nessun turno usato finora.</span>')+'</div>'+
           '<div class="lbl">Libreria turni</div><input id="libQ" type="search" class="libq" placeholder="Cerca nella libreria…" autocomplete="off"><div class="lib all" id="libAll">'+(libBtns(L.rest)||'<span class="empty">Tutti i turni sono già nei più usati.</span>')+'</div>'
@@ -1253,25 +1319,39 @@ function cellSheet(id, di){
     if(!dr.days[id]) dr.days[id] = [[],[],[],[],[],[],[]];
     var arr = dr.days[id][di] = (dr.days[id][di]||[]).map(function(l){ return l.slice(); });
     fn(arr);
-    var base = S.weeks[P.idx], same = JSON.stringify(((base.days||{})[id]||[])[di]||[]) === JSON.stringify(arr);
+    var base = planBase(), same = JSON.stringify(((base.days||{})[id]||[])[di]||[]) === JSON.stringify(arr);
     if(same) delete P.cells[base.mon][key]; else P.cells[base.mon][key] = 1;
     P.err = ''; draw();
   }
   draw();
 }
+function planCopyPrev(){
+  var P = S.plan, base = planBase(), L = planList(), prev = null, k;
+  for(k=0;k<L.length;k++){ if(L[k].mon===fYmd(addD(pYmd(base.mon),-7))) prev = P.draft[L[k].mon] || L[k]; }
+  var src = (prev && prev.days) || {}, n = 0;
+  var dr = planDraft(); dr.days = dr.days || {};
+  Object.keys(src).forEach(function(id){
+    if(!S.people[id]) return;
+    var wk = (src[id]||[]).map(function(dl){ return (dl||[]).map(function(l){ return l.slice(); }); });
+    for(var d=0; d<7; d++){ if(wk[d] && wk[d].length){ (dr.days[id] = dr.days[id] || [[],[],[],[],[],[],[]])[d] = wk[d]; P.cells[base.mon][id+'|'+d] = 1; n++; } }
+  });
+  if(!n){ toast('La settimana precedente è vuota'); delete P.draft[base.mon]; delete P.cells[base.mon]; delete P.base[base.mon]; return; }
+  P.err = ''; render();
+}
 function progPublish(){
-  var P = S.plan, base = S.weeks[P.idx], dr = P.draft[base.mon]; if(!dr || P.busy) return;
+  var P = S.plan, base = planBase(), dr = P.draft[base.mon]; if(!dr || P.busy) return;
   P.busy = true; P.err = ''; render();
   sb.from('weeks').select('version').eq('mon', base.mon).maybeSingle().then(function(r0){
     if(r0.error) throw r0.error;
-    if(!r0.data || r0.data.version !== P.base[base.mon]) throw new Error('La settimana è stata aggiornata nel frattempo (versione '+(r0.data?r0.data.version:'?')+'). Annulla la bozza e rifai le modifiche.');
-    var data = JSON.parse(JSON.stringify(dr)); delete data.v; delete data.at; delete data.src;
+    if(base.virtual){ if(r0.data) throw new Error('Questa settimana è stata pubblicata nel frattempo (dalla console o da un altro dispositivo). Annulla la bozza e rifai le modifiche.'); }
+    else if(!r0.data || r0.data.version !== P.base[base.mon]) throw new Error('La settimana è stata aggiornata nel frattempo (versione '+(r0.data?r0.data.version:'?')+'). Annulla la bozza e rifai le modifiche.');
+    var data = JSON.parse(JSON.stringify(dr)); delete data.v; delete data.at; delete data.src; delete data.virtual;
     return sb.rpc('save_week_app', {p_mon:base.mon, p_data:data});
   }).then(function(r){
     if(r.error) throw r.error;
     delete P.draft[base.mon]; delete P.cells[base.mon]; delete P.base[base.mon]; P.busy = false;
-    toast('Turni aggiornati ✓ (v.'+(r.data && r.data.v)+')'); return refresh(true);
-  }).catch(function(e){ P.busy = false; P.err = errMsg(e); render(); });
+    toast((base.virtual?'Settimana pubblicata ✓':'Turni aggiornati ✓')+' (v.'+(r.data && r.data.v)+')'); return refresh(true);
+  }).catch(function(e){ P.busy = false; P.err = errMsg(e); toast('Non pubblicata: '+P.err); render(); });
 }
 
 /* ---- Sale: panoramica della settimana, correzione e registro ---- */
@@ -1336,13 +1416,15 @@ function bindPlan(){
   var P = S.plan, b;
   document.querySelectorAll('[data-psec]').forEach(function(x){ x.onclick = function(){ P.sec = x.dataset.psec; P.err = ''; render(); window.scrollTo(0,0); }; });
   if(P.sec==='prog'){
-    function go(n){ var k = P.idx+n; if(k<0||k>=S.weeks.length) return; P.idx = k; P.day = planDayFor(S.weeks[k]); P.err = ''; render(); }
+    function go(n){ var k = P.idx+n; if(k<0||k>=planList().length) return; planSel(k); P.err = ''; render(); }
     if((b=$('plPrev'))) b.onclick = function(){ go(-1); };
     if((b=$('plNext'))) b.onclick = function(){ go(1); };
     document.querySelectorAll('[data-pd]').forEach(function(x){ x.onclick = function(){ P.day = +x.dataset.pd; render(); }; });
     document.querySelectorAll('[data-pc]').forEach(function(x){ x.onclick = function(){ cellSheet(x.dataset.pc, P.day); }; });
     if((b=$('plPub'))) b.onclick = progPublish;
-    if((b=$('plDrop'))) b.onclick = function(){ var w = S.weeks[P.idx]; delete P.draft[w.mon]; delete P.cells[w.mon]; delete P.base[w.mon]; P.err = ''; render(); };
+    if((b=$('plPub2'))) b.onclick = progPublish;
+    if((b=$('plCopy'))) b.onclick = planCopyPrev;
+    if((b=$('plDrop'))) b.onclick = function(){ var w = planBase(); delete P.draft[w.mon]; delete P.cells[w.mon]; delete P.base[w.mon]; P.err = ''; render(); };
     return;
   }
   bindOr();
@@ -1356,7 +1438,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.20';
+var APP_VERSION = '2026.11.22';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }

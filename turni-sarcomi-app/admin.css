@@ -251,7 +251,9 @@
   .orWarn{color:#b45309; font-weight:700;}
   .btn-small.on{background:#1f7a3d; color:#fff;}
   td.cell.today{background:rgba(31,122,61,.07);}
-  .pill[data-req]{outline:1.5px dashed #1f7a3d; outline-offset:-2px;}
+  .reqTag{border:1.5px dashed #1f7a3d; border-radius:6px; padding:2px 6px; margin-bottom:3px; font-size:11px; line-height:1.25; color:#14532d; background:transparent; pointer-events:none;}
+  @media print{.reqTag{display:none!important}}
+  .print-mode .reqTag{display:none!important}
   .reqbadge{display:inline-block; min-width:18px; padding:0 5px; border-radius:9px; background:#d97706; color:#fff; font-size:11px; font-weight:700; text-align:center; line-height:18px; margin-left:3px;}
   .reqtabs{display:flex; gap:6px; flex-wrap:wrap;}
   .reqcard{border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:8px; background:#fff;}

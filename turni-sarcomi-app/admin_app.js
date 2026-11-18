@@ -1695,7 +1695,22 @@ let orRows = [], orSig = '', orMap = {};
 function isoLocal(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function orRebuild(){ orMap = {}; orRows.forEach(r=>{ const k = r.person_key+'|'+r.day; (orMap[k] = orMap[k] || []).push(r); }); }
 function orWhen(iso){ const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); }
+// richieste ancora in sospeso: promemoria tratteggiato nella griglia (non fa parte dei turni, non si stampa); quelle approvate diventano turni normali
+function reqPendingTags(td, staffId, dayIdx){
+  const ds = isoLocal(addDays(currentMonday, dayIdx));
+  requests.forEach(r=>{
+    if(r.status!=='pending' || r.staffId!==staffId) return;
+    reqItems(r).forEach(it=>{
+      if(it.d!==ds || !KINDS[it.k]) return;
+      const d = document.createElement('div'); d.className = 'reqTag';
+      d.title = 'Richiesta in attesa di decisione: non è ancora un turno';
+      d.textContent = itemText(it)+' · in attesa';
+      td.insertBefore(d, td.firstChild);
+    });
+  });
+}
 window.__orTag = function(td, staffId, dayIdx){
+  try{ reqPendingTags(td, staffId, dayIdx); }catch(e){}
   const rows = orMap[staffId+'|'+isoLocal(addDays(currentMonday, dayIdx))]; if(!rows) return;
   rows.slice().reverse().forEach(r=>{
     const d = document.createElement('div'); d.className = 'orTag '+r.role;
@@ -1713,7 +1728,7 @@ function updateOrBadge(){
 window.__orPaint = function(){
   document.querySelectorAll('td.cell').forEach(td=>{
     if(td.classList.contains('editing')) return;
-    td.querySelectorAll('.orTag').forEach(x=>x.remove());
+    td.querySelectorAll('.orTag,.reqTag').forEach(x=>x.remove());
     window.__orTag(td, td.dataset.staff, +td.dataset.day);
   });
   updateOrBadge();
@@ -1771,6 +1786,15 @@ function subscribeRemote(){
   if(!env.db) return;
   try{ env.db.collection('rq').limit(1000).onSnapshot(mergeRemote, e=> console.error('rq snapshot', e)); }catch(e){ console.error(e); }
   refreshOr(); setInterval(()=>{ if(!document.hidden) refreshOr(); }, 20000);
+  // libreria turni -> server (solo se cambia): serve alla Programmazione dell'app
+  let libSig = '';
+  async function syncLib(){
+    if(!env.putLibrary || typeof turnoLibrary==='undefined' || !Array.isArray(turnoLibrary) || !turnoLibrary.length) return;
+    const lib = turnoLibrary.filter(l=>l && l.text).map(l=>({t:String(l.text).slice(0,60), c:l.bg||'', k:l.categories||[]}));
+    const sig = JSON.stringify(lib); if(sig===libSig) return;
+    if(await env.putLibrary(lib)) libSig = sig;
+  }
+  setTimeout(syncLib, 4000); setInterval(()=>{ if(!document.hidden) syncLib(); }, 15000);
   const ob = document.getElementById('btnOr'); if(ob) ob.onclick = openOrModal;
 }
 async function setRequestStatus(r, status, adminNote){
@@ -1970,7 +1994,7 @@ async function buildStaffPayload(){
   requests.forEach(r=>{ rs[r.id] = [r.status==='approved'?'a':r.status==='denied'?'d':'p', r.adminNote||'']; });
   const used = new Set(); weeks.forEach(w=> w.order.forEach(id=>used.add(id)));
   const peopleOut = {}; staff.forEach(s=>{ if(used.has(s.id) || !s.removed) peopleOut[s.id] = people[s.id]; });
-  return {gen:new Date().toISOString(), cats:CATS, people:peopleOut, weeks, rs, wa:(appSettings.wa||'').replace(/\D/g,''), em:appSettings.em||'', fm:/^https:\/\/forms\.(office|cloud\.microsoft)\.[a-z.]+\//i.test(appSettings.fm||'') ? appSettings.fm : ''};
+  return {gen:new Date().toISOString(), cats:CATS, lib:(turnoLibrary||[]).filter(l=>l && l.text).map(l=>({t:String(l.text).slice(0,60), c:l.bg||'', k:l.categories||[]})), people:peopleOut, weeks, rs, wa:(appSettings.wa||'').replace(/\D/g,''), em:appSettings.em||'', fm:/^https:\/\/forms\.(office|cloud\.microsoft)\.[a-z.]+\//i.test(appSettings.fm||'') ? appSettings.fm : ''};
 }
 
 // email di una persona appena aggiunta: crea/collega l'accesso online
@@ -1989,10 +2013,10 @@ async function pushToStaff(auto){
   try{
     const payload = await buildStaffPayload();
     if(!payload.weeks.length){ if(!auto) showStatusMsg('Nessuna settimana pubblicata (o troppo vecchia): pubblica prima una settimana'); return {ok:false, empty:true}; }
-    const res = await env.publishStaff(payload);
-    appSettings.dirty = false; appSettings.lastStaffPublish = new Date().toISOString();
+    const res = await env.publishStaff(payload, !!auto);
+    if(res && res.skipped){ appSettings.dirty = true; } else { appSettings.dirty = false; appSettings.lastStaffPublish = new Date().toISOString(); }
     await saveKey('appSettings', appSettings); updateStaffAppBadge();
-    showStatusMsg(auto ? 'Inviata anche al personale ✓' : `Pubblicato al personale: ${payload.weeks.length} settimane ✓`);
+    showStatusMsg(res && res.skipped ? 'Non inviata: le settimane modificate dall\'app restano come sono. Pubblica da "Personale online" per sostituirle.' : auto ? 'Inviata anche al personale ✓' : `Pubblicato al personale: ${payload.weeks.length} settimane ✓`);
     return {ok:true, res};
   }catch(e){
     console.error('publish', e);

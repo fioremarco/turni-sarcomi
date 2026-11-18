@@ -231,6 +231,13 @@ async function getNotifRules(){ var r = await sb.from('app_state').select('value
 async function setNotifRules(rules){ var r = await sb.rpc('set_notif_rules', {p_rules:rules}); if(r.error) throw r.error; return r.data; }
 // Settimane corrette dall'app (campo src = "app"): la pubblicazione dalla console le sostituirebbe con la versione del computer.
 // Pubblicazione manuale: chiede conferma. Pubblicazione automatica: lascia quelle settimane come sono.
+/* libreria dei turni: la console la invia da sola (all'apertura e a ogni modifica), così la Programmazione dell'app usa gli stessi nomi */
+async function putLibrary(lib){
+  try{
+    var r = await sb.from('app_state').upsert({key:'turni_lib', value:{lib:lib, at:new Date().toISOString()}, updated_at:new Date().toISOString()});
+    return !(r && r.error);
+  }catch(e){ return false; }
+}
 async function publishStaff(payload, auto){
   // libreria dei turni: serve all'app per la Programmazione (nomi e colori della console)
   if(payload.lib && payload.lib.length){ try{ await sb.from('app_state').upsert({key:'turni_lib', value:{lib:payload.lib, at:new Date().toISOString()}, updated_at:new Date().toISOString()}); }catch(e){} }
@@ -426,7 +433,7 @@ async function startAdmin(me){
     db: { collection: function(n){ return n==='rq' ? src.rq : n==='dec' ? src.dec : kvCollection(); } },
     me: me,
     saveFile: saveFile,
-    publishStaff: publishStaff,
+    publishStaff: publishStaff, putLibrary: putLibrary,
     listAccess: listAccess, saveAccess: saveAccess, listOrAssignments: listOrAssignments, setAccessActive: setAccessActive,
     getNtfy: getNtfy, setNtfy: setNtfy, testNtfy: testNtfy,
     getNotifRules: getNotifRules, setNotifRules: setNotifRules
