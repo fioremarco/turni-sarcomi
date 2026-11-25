@@ -218,15 +218,31 @@ function writeCache(){
 }
 function applyCache(c){ S.rules=c.rules||null; S.lib=c.lib||null; S.weeks=c.weeks||[]; S.people=c.people||{}; S.cats=c.cats||[]; S.dir=c.dir||[]; S.approved=c.approved||[]; S.props=c.props||[]; S.loadedAt=c.at; }
 
+
+// Supabase restituisce al massimo 1000 righe per richiesta: i giorni accettati si leggono a pagine, altrimenti gli ultimi dell'anno (i più recenti) andrebbero persi
+function fetchAllApproved(jan1){
+  var PAGE = 1000, all = [];
+  function next(from){
+    return sb.from('approved_items').select('staff_id,day,kind,hours,proposal_id').gte('day', jan1).order('day').order('proposal_id').order('staff_id').order('kind').range(from, from+PAGE-1).then(function(r){
+      if(r.error) return {data:null, error:r.error};
+      all = all.concat(r.data||[]);
+      if((r.data||[]).length < PAGE || from > 20000) return {data:all, error:null};
+      return next(from+PAGE);
+    });
+  }
+  return next(0);
+}
 function refresh(rerender){
-  if(!sb || S.loading) return Promise.resolve();
+  if(!sb) return Promise.resolve();
+  // un aggiornamento già in corso potrebbe aver letto i dati prima della modifica appena fatta: ne rifaccio uno subito dopo
+  if(S.loading){ if(rerender) S.again = true; return Promise.resolve(); }
   S.loading = true;
   var jan1 = new Date().getFullYear()+'-01-01';
   var qs = [
     sb.from('weeks').select('data').order('mon'),
     sb.from('app_state').select('key,value'),
     sb.rpc('directory'),
-    sb.from('approved_items').select('staff_id,day,kind,hours,proposal_id').gte('day', jan1).order('day'),
+    fetchAllApproved(jan1),
     sb.from('proposals').select('id,staff_id,items,note,status,reply,created_at,decided_at,entered_by,staff:staff_id(name,category)').order('created_at',{ascending:false}).limit(300),
     sb.rpc('whoami')
   ];
@@ -259,8 +275,9 @@ function refresh(rerender){
     S.loading = false;
     if(S.revokedNow){ S.revokedNow = false; return revoked(); }
     if(rerender && S.me) render();
-    updateBadge();
-  }, function(e){ S.loading=false; throw e; });
+    updateBadge(); reportVersion();
+    if(S.again){ S.again = false; return refresh(true); }
+  }, function(e){ S.loading=false; S.again=false; throw e; });
 }
 function pendingCount(){ if(!isTit()) return 0; return S.props.filter(function(p){ return p.status==='pending' && p.staff_id!==(S.me&&S.me.id); }).length; }
 function updateBadge(){ try{ if(isAdmin() && navigator.setAppBadge){ var n=pendingCount(); if(n) navigator.setAppBadge(n); else navigator.clearAppBadge(); } }catch(e){} }
@@ -725,6 +742,22 @@ function bindPerm(){
     };
   });
 }
+
+// avviso sul telefono del titolare quando arriva una richiesta (usa le notifiche push dell'app; se non sono attive non succede nulla)
+function notifyNewRequest(pid){
+  if(!pid || !S.push.key || !sb) return;
+  sb.auth.getSession().then(function(x){
+    var tok = x.data && x.data.session && x.data.session.access_token; if(!tok) return;
+    return fetch(CFG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/reminder', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+tok, 'apikey':CFG.SUPABASE_ANON_KEY}, body:JSON.stringify({notify:'new_request', id:pid})});
+  }).catch(function(){});
+}
+// comunica all'archivio la versione dell'app in uso (la console mostra chi non ha ancora aggiornato)
+function reportVersion(){
+  if(!S.me || !sb || S.offline) return;
+  if(S.verAt && Date.now()-S.verAt < 6*3600*1000) return;
+  S.verAt = Date.now();
+  try{ sb.rpc('report_app_version', {p_version:APP_VERSION}).then(function(){}, function(){}); }catch(e){}
+}
 function sendProposal(){
   var P = S.perm, r = permDays(P);
   if(r.err){ P.err = r.err; var e=$('pErr'); if(e) e.textContent = r.err; return; }
@@ -733,6 +766,7 @@ function sendProposal(){
   sb.rpc('submit_proposal', {p_items:r.items, p_note:(P.note||'').trim(), p_for:forOther||null}).then(function(x){
     P.busy=false;
     if(x.error){ P.err = errMsg(x.error); return render(); }
+    notifyNewRequest(x.data);
     P.d=''; P.d2=''; P.h1=''; P.h2=''; P.wk={}; P.note=''; toast(forOther?'Richiesta inviata per '+paForName()+' ✓':isTit()?'Registrato nel calendario':'Richiesta inviata ✓');
     return refresh(true);
   }, function(e){ P.busy=false; P.err=errMsg(e); render(); });
@@ -846,6 +880,7 @@ function applyGo(tab){
     var f = new Date(t0.getFullYear(), t0.getMonth()+1, 1), fd = (f.getDay()+6)%7;
     S.or.mon = fYmd(addD(f, -fd)); S.or.day = fd; S.or.room = SOLV_ROOM; S.or.selKey = ''; S.or.err = ''; S.tab = 'sala';
   } else if(tab==='perm' || tab==='cal'){ S.tab = tab; }
+  else if(tab==='req' && isAdmin() && isTit()){ S.tab = 'req'; S.adm.tab = 'todo'; }
 }
 function goTab(tab){
   if(!S.me){ S.go = tab; return; }
@@ -853,7 +888,7 @@ function goTab(tab){
 }
 function hashGo(){
   var m = /^#vai-([a-z]+)$/.exec(location.hash||''), t = m ? m[1] : (/permessi/.test(location.hash||'') ? 'perm' : '');
-  if(t && /^(cal|perm|sala|solv)$/.test(t)){ try{ history.replaceState(null, '', location.pathname+location.search); }catch(e){} return t; }
+  if(t && /^(cal|perm|sala|solv|req)$/.test(t)){ try{ history.replaceState(null, '', location.pathname+location.search); }catch(e){} return t; }
   return '';
 }
 
@@ -920,7 +955,7 @@ function bindReminder(){
       .catch(function(e){ P.busy = false; P.msg = errMsg(e); render(); });
   };
 }
-if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(e){ if(e.data && e.data.go && /^(cal|perm|sala|solv)$/.test(e.data.go)) goTab(e.data.go); });
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', function(e){ if(e.data && e.data.go && /^(cal|perm|sala|solv|req)$/.test(e.data.go)) goTab(e.data.go); });
 
 /* ---------- impostazioni notifiche (dal profilo) ---------- */
 function ruleText(kind){
@@ -1341,10 +1376,10 @@ function planCopyPrev(){
 function progPublish(){
   var P = S.plan, base = planBase(), dr = P.draft[base.mon]; if(!dr || P.busy) return;
   P.busy = true; P.err = ''; render();
-  sb.from('weeks').select('version').eq('mon', base.mon).maybeSingle().then(function(r0){
+  sb.from('weeks').select('version,published_at').eq('mon', base.mon).maybeSingle().then(function(r0){
     if(r0.error) throw r0.error;
     if(base.virtual){ if(r0.data) throw new Error('Questa settimana è stata pubblicata nel frattempo (dalla console o da un altro dispositivo). Annulla la bozza e rifai le modifiche.'); }
-    else if(!r0.data || r0.data.version !== P.base[base.mon]) throw new Error('La settimana è stata aggiornata nel frattempo (versione '+(r0.data?r0.data.version:'?')+'). Annulla la bozza e rifai le modifiche.');
+    else if(!r0.data || r0.data.version !== P.base[base.mon] || (base.at && r0.data.published_at && Math.abs(Date.parse(r0.data.published_at)-Date.parse(base.at))>1000)) throw new Error('La settimana è stata aggiornata nel frattempo (dalla console o da un altro dispositivo). Annulla la bozza, controlla i turni aggiornati e rifai la modifica.');
     var data = JSON.parse(JSON.stringify(dr)); delete data.v; delete data.at; delete data.src; delete data.virtual;
     return sb.rpc('save_week_app', {p_mon:base.mon, p_data:data});
   }).then(function(r){
@@ -1438,7 +1473,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.22';
+var APP_VERSION = '2026.11.25';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }

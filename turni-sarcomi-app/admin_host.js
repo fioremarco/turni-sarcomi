@@ -226,6 +226,21 @@ async function setNtfy(t){
   var r = await sb.from('app_state').upsert({key:'ntfy', value:{topic:t}, updated_at:new Date().toISOString()});
   if(r.error) throw r.error;
 }
+
+/* notifiche sul telefono: invio a mano (solo titolare) e stato per persona */
+async function staffAppStatus(){ var r = await sb.rpc('staff_app_status'); if(r.error) throw r.error; return r.data || []; }
+async function pushSend(body){
+  var x = await sb.auth.getSession(), tok = x.data && x.data.session && x.data.session.access_token;
+  if(!tok) throw new Error('Accesso scaduto: riapri la console');
+  var res = await fetch(CFG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/reminder', {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok,'apikey':CFG.SUPABASE_ANON_KEY}, body:JSON.stringify(body)});
+  var j = await res.json().catch(function(){ return {}; });
+  if(!res.ok) throw new Error(j.error || 'Il servizio di invio non risponde: la funzione "reminder" è stata attivata su Supabase? (guida, Parte J)');
+  return j;
+}
+/* versione più recente dell'app pubblicata (letta dal file app.js online, accanto alla console) */
+async function latestAppVersion(){
+  try{ var t = await (await fetch('./app.js?c='+Date.now(), {cache:'no-store'})).text(); var m = /APP_VERSION\s*=\s*'([^']+)'/.exec(t); return m ? m[1] : ''; }catch(e){ return ''; }
+}
 async function testNtfy(){ var r = await sb.rpc('send_test_notification'); if(r.error) throw r.error; }
 async function getNotifRules(){ var r = await sb.from('app_state').select('value').eq('key','notif_rules').maybeSingle(); if(r.error) throw r.error; return (r.data && r.data.value) || null; }
 async function setNotifRules(rules){ var r = await sb.rpc('set_notif_rules', {p_rules:rules}); if(r.error) throw r.error; return r.data; }
@@ -238,26 +253,41 @@ async function putLibrary(lib){
     return !(r && r.error);
   }catch(e){ return false; }
 }
-async function publishStaff(payload, auto){
+/* settimane modificate dall'app (Programmazione): la console le legge e le fa sue (vedi syncFromApp) */
+async function onlineWeeks(){
+  var d = new Date(); d.setDate(d.getDate()-120);
+  var from = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  var r = await sb.from('weeks').select('mon,data').gte('mon', from).eq('data->>src','app').order('mon');
+  if(r.error) throw r.error;
+  return r.data || [];
+}
+async function publishStaff(payload, auto, force){
   // libreria dei turni: serve all'app per la Programmazione (nomi e colori della console)
   if(payload.lib && payload.lib.length){ try{ await sb.from('app_state').upsert({key:'turni_lib', value:{lib:payload.lib, at:new Date().toISOString()}, updated_at:new Date().toISOString()}); }catch(e){} }
-  var ws = payload.weeks || [], clash = [];
-  if(ws.length){
+  var ws = payload.weeks || [], clash = [], skippedMons = [];
+  if(ws.length && !force){
     var mons = ws.map(function(w){ return w.mon; }).sort();
     var q = await sb.from('weeks').select('mon,data').gte('mon', mons[0]).lte('mon', mons[mons.length-1]);
-    if(!q.error) clash = (q.data||[]).filter(function(x){ return x.data && x.data.src==='app' && mons.indexOf(x.mon)>=0; }).map(function(x){ return x.mon; });
+    // conflitto vero: l'app ha modificato la settimana DOPO l'ultima versione che la console conosce (le modifiche dell'app già acquisite non contano)
+    if(!q.error) clash = (q.data||[]).filter(function(x){
+      if(!(x.data && x.data.src==='app')) return false;
+      var mine = ws.filter(function(w){ return w.mon===x.mon; })[0];
+      return !!mine && (Date.parse(x.data.at)||0) > (Date.parse(mine.at)||0);
+    }).map(function(x){ return x.mon; });
   }
   if(clash.length){
     var lst = clash.map(function(m){ var p = m.split('-'); return p[2]+'/'+p[1]; }).join(', ');
     if(auto){
       payload = Object.assign({}, payload, {weeks: ws.filter(function(w){ return clash.indexOf(w.mon)<0; })});
-      if(!payload.weeks.length) return {weeks:0, new_people:0, skipped:clash.length};
+      skippedMons = clash.slice();
+      if(!payload.weeks.length) return {weeks:0, new_people:0, skipped:clash.length, skipped_mons:skippedMons};
     } else if(!window.confirm('Le settimane con inizio '+lst+' sono state modificate dall\'app dopo la tua ultima pubblicazione.\n\nSe continui, la tua versione del computer sostituisce quelle modifiche.\n\nVuoi pubblicare lo stesso?')){
       throw new Error('Pubblicazione annullata: le settimane con inizio '+lst+' sono state modificate dall\'app');
     }
   }
   var r = await sb.rpc('publish_schedule', {p_people:payload.people, p_cats:payload.cats, p_weeks:payload.weeks});
-  if(r.error) throw r.error; return r.data;
+  if(r.error) throw r.error;
+  return skippedMons.length ? Object.assign({}, r.data, {skipped:skippedMons.length, skipped_mons:skippedMons}) : r.data;
 }
 function saveFile(filename, data){
   return new Promise(function(resolve, reject){
@@ -433,10 +463,11 @@ async function startAdmin(me){
     db: { collection: function(n){ return n==='rq' ? src.rq : n==='dec' ? src.dec : kvCollection(); } },
     me: me,
     saveFile: saveFile,
-    publishStaff: publishStaff, putLibrary: putLibrary,
+    publishStaff: publishStaff, putLibrary: putLibrary, onlineWeeks: onlineWeeks,
     listAccess: listAccess, saveAccess: saveAccess, listOrAssignments: listOrAssignments, setAccessActive: setAccessActive,
     getNtfy: getNtfy, setNtfy: setNtfy, testNtfy: testNtfy,
-    getNotifRules: getNotifRules, setNotifRules: setNotifRules
+    getNotifRules: getNotifRules, setNotifRules: setNotifRules,
+    staffAppStatus: staffAppStatus, pushSend: pushSend, latestAppVersion: latestAppVersion
   };
   window.__admEnv = envA;
   var stage = $('stage'); stage.innerHTML = '';

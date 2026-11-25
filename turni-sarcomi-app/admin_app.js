@@ -131,7 +131,7 @@ function showStatusMsg(msg){
   s.textContent = msg;
   s.classList.add('show');
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(()=>{ s.classList.remove('show'); s.textContent = 'Salvato'; }, 2500);
+  statusTimer = setTimeout(()=>{ s.classList.remove('show'); s.textContent = 'Salvato'; }, Math.min(15000, 2500 + String(msg).length*60));  // i messaggi lunghi restano più a lungo
 }
 function showStatus(){ showStatusMsg('Salvato'); }
 
@@ -352,17 +352,97 @@ async function renderPubInfo(){
     topbarEl.innerHTML = `<span class="range">${rangeText}</span><span class="pubinfo ${pubClass}">${pubText}</span>`;
   }
 }
+
+// ---- le modifiche fatte dall'app (Programmazione) vengono acquisite dalla console: si può programmare da una o dall'altra, in qualsiasi ordine
+let syncBusy = false, lastSyncAt = 0;
+const syncConflicts = new Set();   // settimane (lunedì, AAAA-MM-GG) cambiate sia dall'app sia qui, non ancora pubblicate
+function entriesSig(ent){          // impronta dei soli testi: serve a capire se la copia di lavoro è diversa dall'ultima pubblicata
+  const o = {};
+  Object.keys(ent||{}).sort().forEach(id=>{
+    const days = [0,1,2,3,4,5,6].map(d=> ((ent[id]||[])[d]||[]).map(l=>lineText(l).trim().toLowerCase()).sort().join('¦'));
+    if(days.some(x=>x)) o[id] = days;
+  });
+  return JSON.stringify(o);
+}
+function linesFromApp(cells, existing){
+  const pool = (existing||[]).slice();
+  return (cells||[]).map(c=>{
+    const t = String(Array.isArray(c) ? c[0] : c).trim();
+    const i = pool.findIndex(l=> lineText(l).trim().toLowerCase()===t.toLowerCase());
+    return i>=0 ? pool.splice(i,1)[0] : makeLine(t, null);   // una voce già presente tiene il suo colore e i suoi dati
+  });
+}
+function entriesFromApp(wdata, base){
+  const out = normalizeEntries(base||{});
+  Object.keys(wdata.days||{}).forEach(id=>{
+    if(!staff.some(s=>s.id===id)) return;
+    const d = wdata.days[id] || [];
+    out[id] = [0,1,2,3,4,5,6].map(i=> linesFromApp(d[i], (out[id]||[])[i]));
+  });
+  return out;
+}
+function rolesFromApp(wdata, current){
+  const want = {}; (wdata.roles||[]).forEach(r=>{ if(r && r.label) want[r.label] = r.name; });
+  const have = {}; SPEC_ROLES.forEach(rl=>{ if(current && current[rl.id]) have[rl.label] = staffNameById(current[rl.id]); });
+  if(JSON.stringify(want)===JSON.stringify(have)) return current || {};   // nessun cambiamento: tengo le assegnazioni com'erano
+  const out = {};
+  SPEC_ROLES.forEach(rl=>{ const nm = want[rl.label]; if(!nm) return; const s = staff.find(x=>x.name===nm); if(s) out[rl.id] = s.id; });
+  return out;
+}
+async function syncFromApp(force){
+  if(syncBusy || !env.onlineWeeks) return false;
+  if(!force && Date.now()-lastSyncAt < 15000) return false;
+  syncBusy = true; let curChanged = false, n = 0;
+  try{
+    const rows = await env.onlineWeeks();
+    for(const r of rows){
+      const d = r.data; if(!d || d.src!=='app') continue;
+      const monD = parseYmd(r.mon), pk = publishedKey(monD), wk = weekKey(monD);
+      const hist = await loadKey(pk, []);
+      const last = hist && hist.length ? hist[hist.length-1] : null;
+      const appAt = Date.parse(d.at)||0;
+      if(last && (Date.parse(last.publishedAt)||0) >= appAt){ syncConflicts.delete(r.mon); continue; }   // già acquisita
+      const wdata = await loadKey(wk, null);
+      const work = wdata ? (wdata.__v===2 ? normalizeEntries(wdata.entries||{}) : normalizeEntries(wdata)) : null;
+      const lastEnt = last ? normalizeEntries(last.entries||{}) : {};
+      if(work && entriesSig(work)!==entriesSig(lastEnt)){ syncConflicts.add(r.mon); continue; }   // qui ci sono modifiche non pubblicate: non le tocco
+      syncConflicts.delete(r.mon);
+      const ent = entriesFromApp(d, work || lastEnt);
+      const ra = rolesFromApp(d, (wdata && wdata.roleAssignments) || (last && last.roleAssignments) || {});
+      const h2 = (hist||[]).slice(); h2.push({version: d.v || h2.length+1, publishedAt: d.at, entries: ent, roleAssignments: ra, fromApp:true});
+      await saveKey(pk, h2);
+      await saveKey(wk, {__v:2, entries:ent, roleAssignments:ra, roleSchedules:(wdata && wdata.roleSchedules) || {}});
+      n++; if(isoDate(monD)===isoDate(currentMonday)) curChanged = true;
+    }
+    lastSyncAt = Date.now();
+    if(n){
+      if(curChanged){ await loadWeek(); }
+      renderGrid(); await renderPubInfo(); await refreshCounters();
+      showStatusMsg(n===1 ? 'Acquisita una settimana modificata dall\'app' : `Acquisite ${n} settimane modificate dall'app`);
+    }
+    if(syncConflicts.size && isoDate(currentMonday) && [...syncConflicts].some(m=>isoDate(parseYmd(m))===isoDate(currentMonday)))
+      showStatusMsg('Questa settimana è stata modificata anche dall\'app, ma qui hai modifiche non pubblicate: restano le tue. Se pubblichi, sostituiscono quelle dell\'app.');
+  }catch(e){ console.warn('sync app', e); }
+  finally{ syncBusy = false; }
+  return n>0;
+}
+
 async function publishWeek(){
+  await syncFromApp(true);
+  const monIso = ymdLocal(currentMonday);
+  const conflict = syncConflicts.has(monIso);
+  if(conflict && !await askConfirm('Questa settimana è stata modificata anche dall\'app dopo la tua ultima pubblicazione. Se pubblichi, la tua versione sostituisce le modifiche fatte dall\'app. Vuoi continuare?', 'Pubblica e sostituisci')){ showStatusMsg('Pubblicazione annullata.'); return; }
   const key = publishedKey(currentMonday);
   const history = await loadKey(key, []);
-  const version = (history ? history.length : 0) + 1;
+  const version = Math.max(history ? history.length : 0, history && history.length ? (history[history.length-1].version||0) : 0) + 1;
   history.push({version, publishedAt: new Date().toISOString(), entries: JSON.parse(JSON.stringify(entries)), roleAssignments: JSON.parse(JSON.stringify(roleAssignments))});
   await saveKey(key, history);
   await renderPubInfo();
   await refreshCounters(); // i badge Lez/Congr e Perm/Ferie si aggiornano solo ora, con la versione appena pubblicata
   await markDirty(); updateStaffAppBadge();
+  syncConflicts.delete(monIso);
   showStatusMsg(`Settimana pubblicata come v.${version}`);
-  pushToStaff(true);
+  pushToStaff(true, conflict);
 }
 document.getElementById('btnPublish').addEventListener('click', publishWeek);
 
@@ -707,11 +787,11 @@ document.getElementById('app').addEventListener('dblclick', e=>{
 
 document.getElementById('prevWeek').addEventListener('click', async ()=>{
   currentMonday = addDays(currentMonday,-7);
-  await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid();
+  await syncFromApp(); await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid();
 });
 document.getElementById('nextWeek').addEventListener('click', async ()=>{
   currentMonday = addDays(currentMonday,7);
-  await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid();
+  await syncFromApp(); await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid();
 });
 const PRINT_W_PX = 1077; // ≈285mm utili (A4 orizzontale, margini 6mm) a 96dpi
 const PRINT_H_PX = 748;  // ≈198mm utili
@@ -2007,16 +2087,19 @@ window.__adminStaffMail = async function(id, name, cat, mailTxt){
 
 // ---- pubblicazione verso il personale (archivio online)
 let pushBusy = false;
-async function pushToStaff(auto){
+async function pushToStaff(auto, force){
   if(pushBusy) return {ok:false, busy:true};
   pushBusy = true;
   try{
     const payload = await buildStaffPayload();
     if(!payload.weeks.length){ if(!auto) showStatusMsg('Nessuna settimana pubblicata (o troppo vecchia): pubblica prima una settimana'); return {ok:false, empty:true}; }
-    const res = await env.publishStaff(payload, !!auto);
+    const res = await env.publishStaff(payload, !!auto, !!force);
     if(res && res.skipped){ appSettings.dirty = true; } else { appSettings.dirty = false; appSettings.lastStaffPublish = new Date().toISOString(); }
     await saveKey('appSettings', appSettings); updateStaffAppBadge();
-    showStatusMsg(res && res.skipped ? 'Non inviata: le settimane modificate dall\'app restano come sono. Pubblica da "Personale online" per sostituirle.' : auto ? 'Inviata anche al personale ✓' : `Pubblicato al personale: ${payload.weeks.length} settimane ✓`);
+    const skl = res && res.skipped_mons ? res.skipped_mons.map(m=>{ const p=m.split('-'); return p[2]+'/'+p[1]; }).join(', ') : '';
+    showStatusMsg(res && res.skipped
+      ? (res.weeks ? `Inviate ${res.weeks} settimane, MA NON quella dal ${skl}: è stata modificata dall'app e resta com'è. ` : `NON inviata la settimana dal ${skl}: è stata modificata dall'app e resta com'è. `) + 'Per sostituirla con la tua versione pubblica da "Personale online".'
+      : auto ? 'Inviata anche al personale ✓' : `Pubblicato al personale: ${payload.weeks.length} settimane ✓`);
     return {ok:true, res};
   }catch(e){
     console.error('publish', e);
@@ -2138,10 +2221,30 @@ function openStaffAppModal(){
     </div>
 
     <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;background:#eef2f8">
-      <b style="min-width:0">3 · Notifica sul telefono per le nuove richieste</b>
-      <span class="hint" style="margin:0">Installa l'app gratuita <b>ntfy</b> sul telefono, tocca "+" e inserisci l'argomento qui sotto. Scegli un nome lungo e difficile da indovinare. L'argomento è unico per tutti gli amministratori: gli altri amministratori vedono le richieste nell'app (scheda Richieste), senza notifica sul telefono.</span>
+      <b style="min-width:0">3 · Avviso sul telefono per le nuove richieste</b>
+      <span class="hint" style="margin:0">Quando arriva una richiesta il <b>titolare</b> riceve la notifica dell'app sul telefono: basta aver attivato le notifiche (nell'app: tuo nome → Impostazioni notifiche → Attiva). Gli altri amministratori la vedono nella scheda Richieste. <b>Facoltativo:</b> in aggiunta puoi usare l'app gratuita <b>ntfy</b> (tocca "+" e inserisci l'argomento qui sotto, un nome lungo e difficile da indovinare); se non ti serve lascia vuoto.</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="ntTopic" placeholder="argomento segreto" autocapitalize="none" spellcheck="false" style="flex:1;min-width:220px;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><button class="btn-small" id="ntGen">Genera</button><button class="btn-small" id="ntSave">Salva</button><button class="btn-small" id="ntTest">Invia prova</button></div>
       <span class="hint" id="ntMsg" style="margin:0"></span>
+    </div>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:8px;margin-top:10px;background:#fdf3e1">
+      <b style="min-width:0">4 · Invia una notifica ora</b>
+      <span class="hint" style="margin:0">Arriva come notifica del telefono a chi l'ha attivata (chi non l'ha attivata la vede solo se apre l'app, perché qui non compare nessun avviso). Solo il titolare della programmazione può inviarla.</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span>A chi:</span>
+        <select id="pnAud" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px"><option value="all">Tutto il personale</option><option value="chirurghi">Chirurghi</option><option value="specializzandi">Specializzandi</option><option value="datamanager">Personale di supporto</option><option value="no_requests">Chi non ha ancora inviato richieste da lunedì</option></select>
+        <span>Testo:</span>
+        <select id="pnPre" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px"><option value="">Scrivo io</option><option value="des">Promemoria desiderata</option><option value="sala">Promemoria sala operatoria</option><option value="agg">Aggiorna l'app</option></select></div>
+      <input id="pnTitle" maxlength="80" placeholder="Titolo (breve)" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px">
+      <textarea id="pnText" maxlength="240" rows="2" placeholder="Testo del messaggio" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit"></textarea>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn-small" id="pnDry">Vedi a chi arriva</button><button class="btn-primary" id="pnSend" style="background:var(--accent);color:#fff">Invia ora</button><span class="hint" id="pnMsg" style="margin:0"></span></div>
+    </div>
+
+    <div class="rule-item" style="flex-direction:column;align-items:stretch;gap:6px;margin-top:10px;background:#eef2f8">
+      <b style="min-width:0">5 · Chi usa l'app e con quale versione</b>
+      <span class="hint" style="margin:0">La versione compare quando la persona apre l'app aggiornata. Chi non ha ancora la versione che registra questo dato (o non apre l'app da tempo) appare come <b>non rilevata</b>: va invitato a riaprire l'app due volte.</span>
+      <div id="vrSum" class="hint" style="margin:0">Caricamento…</div>
+      <div id="vrTab" style="overflow-x:auto"></div>
+      <div><button class="btn-small" id="vrReload">Ricarica</button></div>
     </div>
 
     <details style="margin-top:10px"><summary><b>Importa i dati dalla versione precedente (file JSON)</b></summary>
@@ -2260,6 +2363,57 @@ function openStaffAppModal(){
     catch(e){ q('ntMsg').textContent = 'Non riuscito: ' + (e && e.message || 'errore'); }
   };
 
+  // --- notifica manuale
+  const PN_PRE = {
+    des:{t:'Desiderata per la prossima settimana', x:'Ricordati di inviare le tue richieste (ferie, permessi, lezioni, congressi) dalla scheda Permessi.'},
+    sala:{t:'Sala operatoria', x:'Ricordati di inserire le assegnazioni di sala operatoria per la prossima settimana.'},
+    agg:{t:'Aggiorna l\'app Turni', x:'Chiudi e riapri l\'app due volte per scaricare l\'ultima versione.'}
+  };
+  q('pnPre').onchange = ()=>{ const p = PN_PRE[q('pnPre').value]; if(p){ q('pnTitle').value = p.t; q('pnText').value = p.x; } };
+  const pnBody = (dry)=>({manual:true, dry, audience:q('pnAud').value, title:q('pnTitle').value.trim(), text:q('pnText').value.trim(), tab: q('pnPre').value==='sala' ? 'sala' : q('pnPre').value==='des' ? 'perm' : 'cal'});
+  const pnSummary = r=> `${r.persone} person${r.persone===1?'a':'e'} nel gruppo, ${r.con_notifiche} con notifiche attive sul telefono` + (r.senza_notifiche && r.senza_notifiche.length ? `; senza notifiche: ${r.senza_notifiche.slice(0,12).join(', ')}${r.senza_notifiche.length>12?'…':''}` : '');
+  q('pnDry').onclick = async ()=>{
+    q('pnMsg').textContent = 'Controllo…';
+    try{ const r = await env.pushSend(pnBody(true)); q('pnMsg').textContent = pnSummary(r); }
+    catch(e){ q('pnMsg').textContent = 'Non riuscito: ' + (e && e.message || 'errore'); }
+  };
+  q('pnSend').onclick = async ()=>{
+    if(!q('pnTitle').value.trim() || !q('pnText').value.trim()){ q('pnMsg').textContent = 'Scrivi titolo e testo.'; return; }
+    q('pnSend').disabled = true; q('pnMsg').textContent = 'Controllo i destinatari…';
+    try{
+      const d = await env.pushSend(pnBody(true));
+      if(!d.con_notifiche){ q('pnMsg').textContent = 'Nessuno nel gruppo ha attivato le notifiche sul telefono: non invio nulla. ' + pnSummary(d); q('pnSend').disabled = false; return; }
+      if(!await askConfirm(`Inviare «${q('pnTitle').value.trim()}» a ${d.con_notifiche} person${d.con_notifiche===1?'a':'e'} (${d.persone} nel gruppo)? Non si può annullare.`, 'Invia')){ q('pnMsg').textContent = ''; q('pnSend').disabled = false; return; }
+      const r = await env.pushSend(pnBody(false));
+      q('pnMsg').textContent = `Inviata a ${r.con_notifiche} person${r.con_notifiche===1?'a':'e'} (${r.inviati} telefoni)` + (r.falliti ? `, ${r.falliti} non riusciti` : '') + '.';
+    }catch(e){ q('pnMsg').textContent = 'Non riuscito: ' + (e && e.message || 'errore'); }
+    q('pnSend').disabled = false;
+  };
+
+  // --- versioni dell'app
+  const vNum = v=> String(v||'').split('.').map(x=>parseInt(x,10)||0);
+  const vCmp = (a,b)=>{ const x=vNum(a), y=vNum(b); for(let i=0;i<Math.max(x.length,y.length);i++){ const d=(x[i]||0)-(y[i]||0); if(d) return d<0?-1:1; } return 0; };
+  async function loadVersions(){
+    q('vrSum').textContent = 'Caricamento…'; q('vrTab').innerHTML = '';
+    try{
+      const rows = (await env.staffAppStatus()).filter(r=>r.active);
+      let latest = await env.latestAppVersion();
+      rows.forEach(r=>{ if(r.app_version && vCmp(r.app_version, latest)>0) latest = r.app_version; });
+      const ok = rows.filter(r=>r.app_version && vCmp(r.app_version, latest)>=0).length, withPush = rows.filter(r=>r.n_push>0).length;
+      q('vrSum').innerHTML = `Ultima versione: <b>${latest||'—'}</b> · aggiornati: <b>${ok}</b> su ${rows.length} · con notifiche sul telefono: <b>${withPush}</b> su ${rows.length}`;
+      const fmt = d=> d ? new Date(d).toLocaleString('it-IT', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '—';
+      let h = '<table class="orTable"><thead><tr><th>Persona</th><th>Versione</th><th>Ultimo accesso</th><th>Notifiche</th></tr></thead><tbody>';
+      rows.sort((x,y)=> (x.app_version?1:0)-(y.app_version?1:0) || vCmp(x.app_version,y.app_version) || String(x.name).localeCompare(y.name));
+      rows.forEach(r=>{
+        const cur = r.app_version && vCmp(r.app_version, latest)>=0;
+        h += `<tr><td>${escapeHtml(r.name||'')}</td><td style="color:${cur?'#166534':'#9a3412'};font-weight:600">${r.app_version ? escapeHtml(r.app_version) + (cur?' ✓':' · vecchia') : 'non rilevata'}</td><td>${fmt(r.app_seen)}</td><td>${r.n_push>0 ? '✓' : '—'}</td></tr>`;
+      });
+      q('vrTab').innerHTML = h + '</tbody></table>';
+    }catch(e){ q('vrSum').textContent = 'Non riuscito: ' + (e && e.message || 'errore') + ' — hai eseguito lo script SQL aggiornato?'; }
+  }
+  q('vrReload').onclick = loadVersions;
+  loadVersions();
+
   // --- import da file della versione precedente
   q('saFile').onchange = async ()=>{
     const f = q('saFile').files[0]; if(!f) return;
@@ -2298,12 +2452,15 @@ document.getElementById('btnNotif').addEventListener('click', openNotifModal);
 await loadExt(); updateReqBadge(); updateStaffAppBadge();
 document.addEventListener('click', ev=>{ document.querySelectorAll('details.amenu[open]').forEach(d=>{ if(!d.contains(ev.target) || ev.target.closest('.amenu-pop button')) d.removeAttribute('open'); }); });
 await init();
+syncFromApp(true);
+setInterval(()=>{ if(!document.hidden && ![...document.querySelectorAll('.overlay')].some(o=>getComputedStyle(o).display!=='none')) syncFromApp(); }, 60000);
 const goToday = async ()=>{ currentMonday = getMonday(new Date()); await loadWeek(); renderWeekNav(); renderPubInfo(); renderGrid(); window.scrollTo(0,0); };
 document.getElementById('btnToday').addEventListener('click', goToday);
 { let hiddenAt = 0, lastDay = new Date().toDateString();
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){ hiddenAt = Date.now(); return; }
     const modalOpen = [...document.querySelectorAll('.overlay')].some(o=>getComputedStyle(o).display!=='none');
+    syncFromApp(true);
     const newDay = new Date().toDateString()!==lastDay;
     if(!modalOpen && (newDay || (hiddenAt && Date.now()-hiddenAt>10*60*1000))){ lastDay = new Date().toDateString(); goToday(); }
   }); }
