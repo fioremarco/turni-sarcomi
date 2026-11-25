@@ -923,19 +923,30 @@ function reminderCard(){
 function bindReminder(){
   var b, P = S.push;
   if((b=$('pushOn'))) b.onclick = function(){
-    P.busy = true; P.msg = ''; render();
-    Notification.requestPermission().then(function(perm){
-      if(perm!=='granted') throw new Error('Permesso non concesso: senza il consenso non posso mandarti le notifiche.');
-      return navigator.serviceWorker.ready;
+    // ogni passaggio ha un tempo massimo e dice dove si ferma: così non resta mai un pulsante grigio senza spiegazione
+    function lim(p, ms, msg){ return new Promise(function(res, rej){ var t = setTimeout(function(){ rej(new Error(msg)); }, ms); Promise.resolve(p).then(function(v){ clearTimeout(t); res(v); }, function(e){ clearTimeout(t); rej(e); }); }); }
+    function say(m){ P.msg = m; if(S.tab==='set') render(); }
+    P.busy = true; say('Passo 1 di 3: chiedo il permesso per le notifiche…');
+    lim(Notification.requestPermission(), 60000, 'Non è comparsa (o non hai risposto a) la richiesta di permesso. Controlla nelle impostazioni del telefono che le notifiche di questa app siano consentite, poi riprova.').then(function(perm){
+      if(perm!=='granted') throw new Error('Permesso non concesso: senza il consenso non posso mandarti le notifiche. Riattivalo dalle impostazioni del telefono per questa app.');
+      say('Passo 2 di 3: preparo l\'app…');
+      return lim(navigator.serviceWorker.ready, 10000, 'L\'app non è ancora pronta. Chiudila completamente, riaprila e riprova.');
     }).then(function(reg){
-      return reg.pushManager.getSubscription().then(function(sub){ return sub || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(P.key)}); });
+      say('Passo 3 di 3: collego il telefono al servizio notifiche…');
+      return lim(reg.pushManager.getSubscription().then(function(sub){ return sub || reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64u(P.key)}); }), 30000,
+        'Il telefono non riesce a collegarsi al servizio notifiche di Google. Cause frequenti: Wi-Fi dell\'ospedale che blocca le notifiche (prova con i dati mobili), risparmio batteria che limita l\'app, servizi Google Play non aggiornati. Poi riprova.');
     }).then(function(sub){
       var j = sub.toJSON(), k = j.keys || {};
       return sb.rpc('save_push', {p_endpoint:j.endpoint, p_p256dh:k.p256dh, p_auth:k.auth});
     }).then(function(r){
       if(r.error) throw r.error;
       P.on = true; P.busy = false; P.msg = 'Fatto: da ora ricevi le notifiche su questo telefono.'; render();
-    }).catch(function(e){ P.busy = false; P.msg = errMsg(e); render(); });
+    }).catch(function(e){
+      P.busy = false;
+      var m = errMsg(e);
+      if(e && (e.name==='AbortError' || /push service|registration failed/i.test(String(e.message||'')))) m = 'Il telefono non riesce a collegarsi al servizio notifiche di Google. Prova con i dati mobili invece del Wi-Fi dell\'ospedale, controlla che i servizi Google Play siano aggiornati e che l\'app non sia limitata dal risparmio batteria, poi riprova.';
+      P.msg = m; render();
+    });
   };
   if((b=$('pushOff'))) b.onclick = function(){
     P.busy = true; P.msg = ''; render();
@@ -1473,7 +1484,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.25';
+var APP_VERSION = '2026.11.26';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
