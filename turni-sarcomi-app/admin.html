@@ -6,6 +6,8 @@
 <title>Turni Sarcomi — Amministrazione</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="icons/icon-192.png">
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#123f22">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Condensed:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
 </head>
@@ -23,6 +25,7 @@
   </div>
   <div class="topbar-weekinfo" id="topbarWeekInfo"></div>
   <div class="actions no-print">
+    <div class="agroup no-print"><span class="alabel">Vista</span><div class="abtns"><a class="btn-ghost" id="btnToApp" href="index.html?app=1" title="Torna alla vista app (calendario, richieste, programmazione)" style="text-decoration:none">Apri l'app</a></div></div>
     <div class="agroup inbox no-print"><span class="alabel">Da vedere</span><div class="abtns">
       <button class="btn-ghost" id="btnRequests">Richieste</button>
       <button class="btn-ghost" id="btnOr">Suggerimenti sala</button>
@@ -75,6 +78,8 @@
   <div class="navbtns no-print"><button class="btn-small" id="nextWeek">Settimana succ. ›</button></div>
 </div>
 
+<div class="viewmode no-print" id="viewMode"><button type="button" id="vmProg" class="active">Programmazione</button><button type="button" id="vmPub">Settimana pubblicata</button></div>
+<div class="statusbar no-print" id="statusBar"></div>
 <div class="viewfilter no-print" id="viewFilter"></div>
 
 <div class="wrap" id="app"><div class="loading">Caricamento…</div></div>

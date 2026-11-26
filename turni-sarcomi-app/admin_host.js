@@ -474,7 +474,7 @@ async function startAdmin(me){
   var stage = $('stage'); stage.innerHTML = '';
   stage.appendChild($('tpl-admin').content.cloneNode(true));
   var bar = document.createElement('div'); bar.className = 'adm-bar no-print';
-  bar.innerHTML = '<span>'+esc(me.name||'Amministratore')+'</span><button class="titchip" id="titChip" type="button"></button><a href="./" title="Apri l\'app come la vede il personale">App</a><button id="admOut">Esci</button>';
+  bar.innerHTML = '<span>'+esc(me.name||'Amministratore')+'</span><button class="titchip" id="titChip" type="button"></button><a href="./?app=1" title="Apri l\'app come la vede il personale">App</a><button id="admOut">Esci</button>';
   document.body.appendChild(bar);
   $('admOut').onclick = logout;
   setupTitolare(me, storage);

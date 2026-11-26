@@ -332,6 +332,7 @@ function saveWeek(){ saveKey(weekKey(currentMonday), {__v:2, entries, roleAssign
 function publishedKey(monday){ return 'published:'+isoDate(monday); }
 async function renderPubInfo(){
   const history = await loadKey(publishedKey(currentMonday), []);
+  try{ pubSnapSet(publishedKey(currentMonday), history); }catch(e){ console.error(e); }
   const el = document.getElementById('pubInfo');
   const topbarEl = document.getElementById('topbarWeekInfo');
   let pubText, pubClass;
@@ -482,7 +483,10 @@ function renderGrid(){
   table.appendChild(thead);
   const tbody = document.createElement('tbody');
 
-  const weekRoster = rosterForWeek(currentMonday, entries);
+  const PUBV = viewMode==='pub', snapNow = snapForWeek();
+  const src = PUBV ? ((snapNow && snapNow.entries) || {}) : entries;
+  if(PUBV) panel.classList.add('ro');
+  const weekRoster = rosterForWeek(currentMonday, src);
   catsToShow.forEach((cat, catIdx)=>{
     const members = weekRoster.filter(s=>s.cat===cat.id);
     members.forEach((s, idx)=>{
@@ -504,7 +508,7 @@ function renderGrid(){
         td.className = 'cell' + (addDays(currentMonday,d).toDateString()===new Date().toDateString() ? ' today' : '');
         td.dataset.staff = s.id;
         td.dataset.day = d;
-        renderCellContent(td, s.id, d);
+        if(PUBV) renderCellPub(td, s.id, d, src); else renderCellContent(td, s.id, d);
         td.addEventListener('dragover', e=>{
           e.preventDefault();
           e.dataTransfer.dropEffect = (dragSource && dragSource.staffId===s.id && dragSource.day===d) ? 'move' : 'copy';
@@ -528,7 +532,8 @@ function renderGrid(){
   table.appendChild(tbody);
   panel.appendChild(table);
   app.appendChild(panel);
-  if(window.__orPaint) window.__orPaint();
+  if(window.__orPaint && !PUBV) window.__orPaint();
+  updateStatusBar();
 }
 
 function dropInsertIndexForPill(pillEl, idx, clientY){
@@ -563,7 +568,7 @@ function handleCellDrop(targetStaffId, targetDay, insertBeforeIdx, e){
   saveWeek();
   dragSource = null;
 }
-function renderCellContent(td, staffId, day){ renderCellContent0(td, staffId, day); if(window.__orTag) window.__orTag(td, staffId, day); }
+function renderCellContent(td, staffId, day){ renderCellContent0(td, staffId, day); if(window.__orTag) window.__orTag(td, staffId, day); try{ diffTag(td, staffId, day); }catch(e){} }
 function renderCellContent0(td, staffId, day){
   const lines = (entries[staffId] && entries[staffId][day]) || [];
   if(lines.length===0){ td.innerHTML = ''; return; }
@@ -1766,6 +1771,7 @@ async function mergeRemote(snap){
       const ov = document.getElementById('reqRefresh'); if(ov) ov.click();
     }
   }catch(e){ console.error('rq', e); }
+  lastTickAt = Date.now(); try{ updateStatusBar(); }catch(e){}
   remoteBusy = false;
   if(remoteQueue){ const q = remoteQueue; remoteQueue = null; mergeRemote(q); }
 }
@@ -1813,13 +1819,93 @@ window.__orPaint = function(){
   });
   updateOrBadge();
 };
+// ---- due viste della settimana: Programmazione (bozza di lavoro) e Settimana pubblicata (quella che vede il personale, sola lettura)
+let viewMode = (()=>{ try{ return localStorage.getItem('turni_console_view')==='pub' ? 'pub' : 'prog'; }catch(e){ return 'prog'; } })();
+let pubSnap = {key:'', version:0, at:'', entries:null, sig:''};
+let lastTickAt = Date.now();
+const textKey = l => lineText(l).trim().toLowerCase();
+function snapForWeek(){ return pubSnap.key===publishedKey(currentMonday) ? pubSnap : null; }
+function pubSnapSet(key, history){
+  const last = (history && history.length) ? history[history.length-1] : null;
+  const next = {key, version:last?last.version:0, at:last?last.publishedAt:'', entries:last?(last.entries||{}):null};
+  next.sig = key+'|'+next.version+'|'+next.at;
+  const changed = next.sig!==pubSnap.sig;
+  pubSnap = next;
+  if(key!==publishedKey(currentMonday)) return;
+  if(viewMode==='pub'){ if(changed || !document.querySelector('.rosterPanel.ro')) renderGrid(); }
+  else if(changed || document.querySelector('.rosterPanel')) diffPaintAll();
+  updateStatusBar();
+}
+function diffTag(td, staffId, day){
+  td.querySelectorAll('.diffGone').forEach(x=>x.remove());
+  td.querySelectorAll('.pill.diffNew').forEach(x=>x.classList.remove('diffNew'));
+  if(viewMode!=='prog') return;
+  const snap = snapForWeek(); if(!snap || !snap.entries) return;
+  const pool = ((snap.entries[staffId]||[])[day]||[]).map(l=>[textKey(l), lineText(l)]);
+  td.querySelectorAll('.pill').forEach(p=>{
+    const k = (p.dataset.text||'').trim().toLowerCase(), i = pool.findIndex(x=>x[0]===k);
+    if(i>=0) pool.splice(i,1); else p.classList.add('diffNew');
+  });
+  pool.forEach(x=>{ const d = document.createElement('div'); d.className = 'diffGone'; d.title = 'È nella settimana pubblicata, ma è stato tolto in questa bozza'; d.textContent = x[1]; td.appendChild(d); });
+}
+function diffPaintAll(){ document.querySelectorAll('td.cell').forEach(td=>{ if(!td.classList.contains('editing')) diffTag(td, td.dataset.staff, +td.dataset.day); }); }
+function diffCounts(){
+  const snap = snapForWeek(); if(!snap || !snap.entries) return null;
+  let nNew = 0, nGone = 0;
+  const ids = new Set([...Object.keys(entries||{}), ...Object.keys(snap.entries||{})]);
+  ids.forEach(id=>{ for(let d=0; d<7; d++){
+    const pool = (((snap.entries||{})[id]||[])[d]||[]).map(textKey);
+    (((entries||{})[id]||[])[d]||[]).forEach(l=>{ const i = pool.indexOf(textKey(l)); if(i>=0) pool.splice(i,1); else nNew++; });
+    nGone += pool.length;
+  } });
+  return {nNew, nGone};
+}
+function renderCellPub(td, staffId, day, src){
+  const lines = (src[staffId] && src[staffId][day]) || [];
+  td.innerHTML = lines.map(l=>{ const c = colorForCellLine(l); return `<span class="pill ro" style="background:${c.bg}; color:${c.fg};"><span class="pill-text">${escapeHtml(lineText(l))}</span></span>`; }).join('');
+}
+function updateStatusBar(){
+  const bar = document.getElementById('statusBar'); if(!bar) return;
+  const nReq = requests.filter(r=>r.status==='pending').length;
+  const nOr = orWeekRows().length, snap = snapForWeek(), dc = diffCounts();
+  const hh = new Date(lastTickAt).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  let h = '';
+  if(viewMode==='pub'){
+    h += snap && snap.entries
+      ? `<span class="sb sb-info"><b>Settimana pubblicata</b> · v.${snap.version} · ${escapeHtml(new Date(snap.at).toLocaleDateString('it-IT'))} ${escapeHtml(new Date(snap.at).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}))} · è ciò che vede il personale (sola lettura)</span>`
+      : `<span class="sb sb-warn"><b>Questa settimana non è ancora stata pubblicata</b>: il personale non la vede.</span>`;
+  } else {
+    h += snap && snap.entries
+      ? `<span class="sb ${dc && (dc.nNew||dc.nGone) ? 'sb-warn' : 'sb-ok'}" title="Confronto con la settimana pubblicata v.${snap.version}">${dc && (dc.nNew||dc.nGone) ? `Bozza diversa dalla pubblicata: <b>${dc.nNew}</b> nuovi · <b>${dc.nGone}</b> tolti` : 'Bozza uguale alla pubblicata'}</span>`
+      : `<span class="sb sb-warn"><b>Non ancora pubblicata</b></span>`;
+  }
+  h += `<button type="button" class="sb sb-btn ${nReq?'sb-hot':''}" data-sb="req">Richieste in attesa: <b>${nReq}</b></button>`;
+  h += `<button type="button" class="sb sb-btn ${nOr?'sb-hot':''}" data-sb="or">Suggerimenti sala (settimana): <b>${nOr}</b></button>`;
+  h += `<span class="sb sb-time" title="Si aggiorna da solo ogni 20 secondi">● in diretta · aggiornato alle ${hh}</span>`;
+  bar.innerHTML = h;
+  bar.querySelectorAll('[data-sb]').forEach(b=>b.onclick = ()=>{ const t = document.getElementById(b.dataset.sb==='req' ? 'btnRequests' : 'btnOr'); if(t) t.click(); });
+  const bp = document.getElementById('vmProg'), bq = document.getElementById('vmPub');
+  if(bp) bp.classList.toggle('active', viewMode==='prog'); if(bq) bq.classList.toggle('active', viewMode==='pub');
+  const pb = document.getElementById('btnPublish'); if(pb) pb.disabled = (viewMode==='pub');
+}
+function setViewMode(m){
+  viewMode = m; try{ localStorage.setItem('turni_console_view', m); }catch(e){}
+  document.body.classList.toggle('view-pub', m==='pub');
+  renderGrid();
+}
+(function bindViewMode(){
+  const a = document.getElementById('vmProg'), b = document.getElementById('vmPub');
+  if(a) a.onclick = ()=>setViewMode('prog'); if(b) b.onclick = ()=>setViewMode('pub');
+  document.body.classList.toggle('view-pub', viewMode==='pub');
+  setInterval(()=>{ if(!document.hidden){ lastTickAt = Date.now(); updateStatusBar(); } }, 20000);
+})();
 async function refreshOr(){
   if(!env.listOrAssignments) return;
   try{
     const rows = await env.listOrAssignments(isoLocal(addDays(new Date(),-30)), isoLocal(addDays(new Date(),200)));
     const sig = JSON.stringify(rows.map(r=>[r.id,r.room,r.role,r.note,r.person_key,r.by,r.at]));
     if(sig===orSig) return;
-    orSig = sig; orRows = rows; orRebuild(); window.__orPaint();
+    orSig = sig; orRows = rows; orRebuild(); window.__orPaint(); updateStatusBar();
     const ov = document.getElementById('orOverlay'); if(ov && ov.__redraw) ov.__redraw();
   }catch(e){ console.error('sala op', e); }
 }

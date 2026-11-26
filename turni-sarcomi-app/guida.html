@@ -41,7 +41,7 @@ footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
 </header>
 <main>
 <nav class="toc" aria-label="Indice">
-  <a href="#install">1 · Installare</a><a href="#login">2 · Accedere</a><a href="#update">3 · Aggiornare</a><a href="#notif">4 · Notifiche</a><a href="#perm">5 · Permessi</a><a href="#problemi">6 · Se qualcosa non va</a>
+  <a href="#install">1 · Installare</a><a href="#login">2 · Accedere</a><a href="#update">3 · Aggiornare</a><a href="#notif">4 · Notifiche</a><a href="#pc">5 · Sul computer</a><a href="#perm">6 · Permessi</a><a href="#problemi">7 · Se qualcosa non va</a>
 </nav>
 
 <section id="install">
@@ -62,7 +62,7 @@ footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
 <li>Apri l'app dall'icona sulla Home. Per le notifiche serve <b>iOS 16.4 o più recente</b> (Impostazioni → Generali → Info → Versione software).</li>
 </ol>
 <h3>Computer</h3>
-<p>Basta aprire l'indirizzo con Chrome o Edge e accedere. Sul computer le notifiche push non sono necessarie: gli avvisi compaiono dentro l'app.</p>
+<p>Basta aprire l'indirizzo con Chrome o Edge e accedere: l'app si apre in vista ampia. Tutti i passaggi, compresa l'installazione come programma, sono nella <a href="#pc">sezione 5</a>.</p>
 </section>
 
 <section id="login">
@@ -111,8 +111,38 @@ footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
 <div class="box ok"><b>Fatto</b>Dopo la prova funzionano anche tutte le altre notifiche. Non occorre rifarlo, salvo reinstallare l'app.</div>
 </section>
 
+<section id="pc">
+<h2><i>5</i> Usare l'app anche sul computer</h2>
+<p>L'app funziona anche su PC e Mac, con una vista più ampia: il calendario di tutti occupa lo schermo intero. Non serve installare nient'altro e vale per tutti.</p>
+<h3>Dove trovo il link</h3>
+<ol>
+<li>Apri l'app sul telefono e tocca il tuo <b>nome in alto a destra</b>.</li>
+<li>Nella scheda che si apre trovi <b>«Indirizzo dell'app per il computer»</b>: tocca <b>Copia il link</b>.</li>
+<li>Invialo al tuo computer (email, messaggio a te stesso) oppure scrivi a mano l'indirizzo <code>fioremarco.github.io/turni-sarcomi/turni-sarcomi-app/</code>.</li>
+</ol>
+<h3>Su quale browser</h3>
+<ul>
+<li><b>Windows:</b> Chrome o Edge.</li>
+<li><b>Mac:</b> Chrome (oppure Safari: File → Aggiungi al Dock).</li>
+</ul>
+<h3>Installarla come programma</h3>
+<ol>
+<li>Apri l'indirizzo nel browser e accedi con la tua email (arriva un codice per email).</li>
+<li>Clicca l'icona <b>«Installa»</b> nella barra degli indirizzi, a destra (un monitor con una freccia), poi <b>Installa</b>. In alternativa: menu <b>⋮</b> → <b>Salva e condividi</b> → <b>Installa Turni Sarcomi</b> (Edge: menu <b>…</b> → <b>App</b> → <b>Installa questo sito come app</b>).</li>
+<li>Da ora la trovi tra i programmi, con la sua icona, e si apre in una finestra tutta sua.</li>
+</ol>
+<div class="box ok"><b>Che cosa vedi sul computer</b>Ognuno vede i propri strumenti: calendario di tutti con la settimana pubblicata, la richiesta di permesso in due passaggi e il proprio profilo. Chi è amministratore trova anche Richieste, Programma e Gestione.</div>
+<h3>Solo per gli amministratori: app o console</h3>
+<p>Sul computer l'amministratore ha il pulsante <b>«Console ↗»</b> accanto alle schede. La console ha due viste, da scegliere in alto:</p>
+<ul>
+<li><b>Programmazione</b>: la bozza di lavoro. Mostra in diretta le richieste in attesa e i suggerimenti dei Master di sala, e evidenzia con «nuovo» e «tolto» che cosa cambia rispetto alla settimana pubblicata.</li>
+<li><b>Settimana pubblicata</b>: ciò che vede il personale, in sola lettura.</li>
+</ul>
+<p>Per aprire sempre la console su un certo computer: nome in alto → <b>«Aprila sempre su questo computer»</b>. Dalla console il pulsante <b>«Apri l'app»</b> riporta alla vista app. Anche la console si può installare come programma a parte, dall'indirizzo <code>…/turni-sarcomi-app/admin.html</code>.</p>
+</section>
+
 <section id="perm">
-<h2><i>5</i> Chiedere un permesso (in due passaggi)</h2>
+<h2><i>6</i> Chiedere un permesso (in due passaggi)</h2>
 <ol>
 <li>Tocca <b>Permessi</b>, scegli che cosa chiedi (Ferie, Permesso, Lezione, Congresso; il personale di supporto: Presente, Smart working, Assente), il giorno, il periodo o la settimana, e tocca <b>Verifica</b>.</li>
 <li>Vedi i <b>colleghi della tua categoria già assenti</b> in quei giorni (solo richieste già accettate: i chirurghi vedono i chirurghi, gli specializzandi gli specializzandi, il personale di supporto il supporto).</li>
@@ -122,7 +152,7 @@ footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
 </section>
 
 <section id="problemi">
-<h2><i>6</i> Se qualcosa non va</h2>
+<h2><i>7</i> Se qualcosa non va</h2>
 <table>
 <tr><th>Problema</th><th>Che cosa fare</th></tr>
 <tr><td>Non compare la richiesta di permesso per le notifiche</td><td>Quasi sempre l'app è stata installata da un browser diverso da Chrome. Disinstalla e reinstalla da Chrome (sezione 1). Poi: Impostazioni telefono → App → Turni Sarcomi → Notifiche → attiva.</td></tr>
@@ -133,6 +163,8 @@ footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
 <tr><td>Le notifiche arrivavano e ora no</td><td>Impostazioni notifiche → «Invia una prova». Se non arriva: «Disattiva», poi di nuovo «Attiva». Controlla di non essere in modalità «Non disturbare».</td></tr>
 <tr><td>Vedo una versione vecchia</td><td>Chiudi e riapri l'app due volte; poi nome in alto → «Aggiorna i dati ora» (sezione 3).</td></tr>
 <tr><td>Un permesso accettato non compare nel calendario</td><td>Nome in alto → «Aggiorna i dati ora». Con connessione assente l'app mostra gli ultimi dati salvati.</td></tr>
+<tr><td>Sul computer non vedo l'icona «Installa»</td><td>Usa Chrome o Edge (non Firefox). Controlla di essere sull'indirizzo giusto e di aver fatto l'accesso; se l'app è già installata, l'icona non compare: cercala tra i programmi.</td></tr>
+<tr><td>Sul computer vedo la vista stretta da telefono</td><td>La finestra è troppo piccola: ingrandiscila oltre 1000 pixel di larghezza (a tutto schermo). La vista ampia parte da sola.</td></tr>
 <tr><td>Il codice via email non arriva</td><td>Controlla la posta indesiderata, attendi un minuto, poi richiedilo di nuovo. Se la tua email non è abilitata, il codice non parte e l'app te lo dice: scrivi al dott. Fiore.</td></tr>
 </table>
 <div class="box warn"><b>Ancora bloccato?</b>Scrivi al dott. Marco Fiore indicando: modello di telefono, browser da cui hai installato l'app, versione dell'app (nome in alto), e che cosa vedi sullo schermo.</div>

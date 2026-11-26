@@ -24,7 +24,7 @@ var KINDS = {
 };
 var CAT_KINDS = {chirurghi:['ass','per','lez','cong'], specializzandi:['ass','per','lez','cong'], datamanager:['pres','sw','abs'], segreteria:['pres','sw','abs']};
 var ABSENT = {ass:1, per:1, lez:1, cong:1, abs:1};
-var LS = {cache:'turni_cache_v2', email:'turni_last_email', hideInstall:'turni_hide_install'};
+var LS = {cache:'turni_cache_v2', email:'turni_last_email', hideInstall:'turni_hide_install', console:'turni_console_default'};
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -73,7 +73,13 @@ var S = {
   rules:null, notif:{busy:false, msg:''}, go:''
 };
 var pollT = null, deferredInstall = null;
-if(/[?&]desk=1/.test(location.search)) document.documentElement.classList.add('desk');
+// vista computer: automatica sugli schermi larghi (oltre 1000 px), per tutti; ?desk=1 la forza
+var WIDE_MQ = window.matchMedia ? window.matchMedia('(min-width: 1000px)') : null;
+function isWide(){ return !!(WIDE_MQ && WIDE_MQ.matches) || /[?&]desk=1/.test(location.search); }
+function applyWide(){ document.documentElement.classList.toggle('desk', isWide()); }
+applyWide();
+if(WIDE_MQ){ var onWide = function(){ var was = document.documentElement.classList.contains('desk'); applyWide(); if(S.me && was!==isWide()){ if(isWide() && S.cal) S.cal.view = 'settimana'; render(); } };
+  if(WIDE_MQ.addEventListener) WIDE_MQ.addEventListener('change', onWide); else if(WIDE_MQ.addListener) WIDE_MQ.addListener(onWide); }
 
 /* =====================================================================
    Avvio
@@ -292,6 +298,8 @@ function enter(){
    ===================================================================== */
 function render(){
   if(!S.me) return;
+  // l'amministratore che ha scelto "apri sempre la console" su questo computer: va direttamente alla console (con ?app=1 si resta nell'app)
+  if(isAdmin() && isWide() && lsGet(LS.console)==='1' && !/[?&]app=1/.test(location.search) && !S.noConsole){ S.noConsole = true; location.replace('admin.html'); return; }
   var tabs = [{id:'cal', l:'Calendario', i:ICON.cal}];
   if(canRequest()) tabs.push({id:'perm', l:'Permessi', i:ICON.perm});
   if((canOr() || canSolv()) && !(isAdmin() && !canSolv())) tabs.push({id:'sala', l:'Sala Op', i:ICON.sala});
@@ -304,11 +312,12 @@ function render(){
   var pc = isAdmin() ? pendingCount() : 0;
   var nav = tabs.length>1 ? '<nav class="nav"><div class="nav-pill n'+tabs.length+'" role="tablist">'+tabs.map(function(t){
     return '<button role="tab" data-tab="'+t.id+'" aria-label="'+t.l+'" aria-current="'+(S.tab===t.id?'page':'false')+'">'+t.i+'<span>'+(t.id==='solv' && tabs.length>=5 ? 'Solventi' : t.l)+'</span>'+(t.id==='req'&&pc?'<span class="badge">'+pc+'</span>':'')+'</button>';
-  }).join('')+'</div></nav>' : '';
+  }).join('')+'</div>'+(isAdmin() && isWide() ? '<button class="navlink" id="goConsole" title="Apri la console di programmazione">Console ↗</button>' : '')+'</nav>' : '';
   var keepScroll = window.scrollY;
   $('app').innerHTML = '<div class="app"><header class="top"><div class="brand"><span class="logochip"><img src="icons/logo.jpg" alt="Sarcoma Service"></span><div><h1>Turni Sarcomi</h1><small>Chirurgia dei Sarcomi · INT</small></div></div><button class="who" id="who" aria-label="Il tuo profilo">'+esc(S.me.name)+'</button></header>'+
-    '<main>'+(S.offline?'<div class="offline">Senza connessione: vedi gli ultimi dati salvati'+(S.loadedAt?' ('+esc(fmtTime(S.loadedAt))+')':'')+'.</div>':'')+body+'</main>'+nav+'</div>';
+    '<main data-tab="'+esc(S.tab)+'">'+(S.offline?'<div class="offline">Senza connessione: vedi gli ultimi dati salvati'+(S.loadedAt?' ('+esc(fmtTime(S.loadedAt))+')':'')+'.</div>':'')+body+'</main>'+nav+'</div>';
   $('who').onclick = profileSheet;
+  var gc = $('goConsole'); if(gc) gc.onclick = function(){ location.href = 'admin.html'; };
   document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv'||S.tab==='plan') refresh(true); }; });
   if(locked) bindLock(); else if(S.tab==='cal') bindCal(); else if(S.tab==='perm') bindPerm(); else if(S.tab==='req') bindReq(); else if(S.tab==='sala') bindOr(); else if(S.tab==='plan') bindPlan(); else if(S.tab==='solv') bindSolv(); else if(S.tab==='set') bindSet(); else bindAdm();
   var np = document.querySelector('.nav-pill'); if(np) document.documentElement.style.setProperty('--navH', (np.offsetHeight + 10)+'px');
@@ -353,13 +362,17 @@ function profileSheet(){
   var s = sheet('<img class="sheetlogo" src="icons/logo.jpg" alt="Sarcoma Service"><h3>'+esc(S.me.name)+'</h3><div class="note">'+esc(CAT_LABEL[S.me.category]||'')+(isAdmin()?' · amministratore'+(isTit()?' (titolare della programmazione)':''):'')+(S.me.is_pa?' · Personal Assistant'+(S.me.pa_for_name?' di '+esc(S.me.pa_for_name):''):(S.me.is_salaop?' · Master SalaOp':'')+(S.me.is_solvag?' · Solventi AG':''))+'<br>'+esc(email)+'<br>Versione dell\'app: '+APP_VERSION+'</div>'+
     '<div class="note">Resti collegato su questo dispositivo. Per usare l\'app da un altro telefono o dal computer basta accedere con la stessa email.</div>'+
     (!standalone ? installHtml() : '')+
-    '<button class="btn alt" id="pfNtf">Impostazioni notifiche</button><button class="btn alt" id="pfRef">Aggiorna i dati ora</button><button class="btn bad" id="pfOut">Esci da questo dispositivo</button><button class="btn alt" id="pfClose">Chiudi</button>');
+    '<div class="install"><b>Indirizzo dell\'app per il computer</b><span>Per usarla anche su un PC, apri questo indirizzo con Chrome o Edge e accedi con la tua email: poi clicca l\'icona «Installa» nella barra degli indirizzi.</span><input type="text" readonly id="pfUrl" value="'+esc(appUrl())+'" onfocus="this.select()"><button class="btn sm alt" id="pfCopy">Copia il link</button></div>'+(isAdmin() && isWide() ? '<div class="install"><b>Console di programmazione</b><span>Su questo computer puoi aprire direttamente la console (vista completa per programmare) invece di questa vista.</span><div class="row"><button class="btn sm" id="pfCons">Apri la console ora</button><button class="btn sm alt" id="pfConsDef">'+(lsGet(LS.console)==='1' ? 'Smetti di aprirla sempre' : 'Aprila sempre su questo computer')+'</button></div></div>' : '')+'<button class="btn alt" id="pfNtf">Impostazioni notifiche</button><button class="btn alt" id="pfRef">Aggiorna i dati ora</button><button class="btn bad" id="pfOut">Esci da questo dispositivo</button><button class="btn alt" id="pfClose">Chiudi</button>');
+  var cp = $('pfCopy'); if(cp) cp.onclick = function(){ var u = appUrl(); var done = function(){ toast('Link copiato'); }; if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(done, function(){ var i = $('pfUrl'); if(i){ i.select(); } toast('Seleziona e copia il link'); }); else { var i = $('pfUrl'); if(i){ i.select(); } toast('Seleziona e copia il link'); } };
+  var pc = $('pfCons'); if(pc) pc.onclick = function(){ location.href = 'admin.html'; };
+  var pd = $('pfConsDef'); if(pd) pd.onclick = function(){ lsSet(LS.console, lsGet(LS.console)==='1' ? '0' : '1'); s.close(); toast(lsGet(LS.console)==='1' ? 'Da ora su questo computer si apre la console' : 'Da ora si apre questa vista'); };
   $('pfNtf').onclick = function(){ s.close(); S.tab = 'set'; render(); window.scrollTo(0,0); };
   $('pfRef').onclick = function(){ s.close(); refresh(true).then(function(){ toast('Dati aggiornati'); }); };
   $('pfOut').onclick = function(){ s.close(); logout(); };
   $('pfClose').onclick = s.close;
   var ib = $('pfInstall'); if(ib) ib.onclick = function(){ deferredInstall.prompt(); };
 }
+function appUrl(){ return location.href.replace(/[#?].*$/,'').replace(/[^\/]*$/,''); }
 function installHtml(){
   var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   if(deferredInstall) return '<div class="install"><b>Installa l\'app</b><button class="btn sm" id="pfInstall">Aggiungi alla schermata Home</button></div>';
@@ -401,7 +414,7 @@ function startWeek(){
   for(i=0;i<w.length;i++){ if(w[i].mon<=today && today<=fYmd(addD(pYmd(w[i].mon),6))) idx=i; }
   if(idx<0){ for(i=0;i<w.length;i++){ if(w[i].mon>today){ idx=i; break; } } }
   if(idx<0) idx = w.length-1;
-  S.cal.weekIdx = Math.max(0, idx); S.cal.view = 'giorno'; S.cal.initDay = today; pickDay();
+  S.cal.weekIdx = Math.max(0, idx); S.cal.view = isWide() ? 'settimana' : 'giorno'; S.cal.initDay = today; pickDay();
 }
 function onToday(){ var w=S.weeks[S.cal.weekIdx]; return !!w && S.cal.day>=0 && fYmd(addD(pYmd(w.mon),S.cal.day))===fYmd(new Date()); }
 function pickDay(){
@@ -1588,7 +1601,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.27';
+var APP_VERSION = '2026.11.28';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
