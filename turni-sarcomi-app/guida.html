@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guida Turni Sarcomi</title>
+<meta name="theme-color" content="#123f22">
+<style>
+:root{--bg:#f2f5f2;--card:#fff;--ink:#17241c;--soft:#43594a;--line:#d7e0d9;--accent:#1f7a3d;--deep:#123f22;--ok-bg:#dff3e5;--bad:#b91c1c;--bad-bg:#fbe2e2;--wait:#8a4b03;--wait-bg:#fdecd0;--chip:#e7efe9}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1611;--card:#16211a;--ink:#e7efe9;--soft:#b6c7bb;--line:#26362b;--accent:#4cc27a;--deep:#0a2415;--ok-bg:#16361f;--bad:#ff9a9a;--bad-bg:#3d1a1a;--wait:#f5c26b;--wait-bg:#3a2a10;--chip:#1f2f25}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--deep);color:#fff;padding:calc(18px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px));display:flex;gap:14px;align-items:center}
+header img{width:54px;height:auto;border-radius:10px;background:#fff;padding:3px}
+header h1{margin:0;font-size:22px;line-height:1.2}
+header p{margin:2px 0 0;font-size:14px;opacity:.85}
+main{max-width:680px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:16px}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px}
+nav.toc a{background:var(--card);border:1.5px solid var(--line);color:var(--ink);text-decoration:none;font-weight:700;font-size:15px;padding:9px 14px;border-radius:12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;scroll-margin-top:12px}
+h2{margin:0 0 10px;font-size:21px;display:flex;gap:10px;align-items:center}
+h2 i{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-style:normal;font-size:16px}
+h3{margin:18px 0 6px;font-size:17.5px}
+p{margin:6px 0}
+ol,ul{margin:6px 0;padding-left:24px}
+li{margin:5px 0}
+.box{border-radius:14px;padding:12px 14px;margin:12px 0;font-size:16px}
+.ok{background:var(--ok-bg)} .no{background:var(--bad-bg)} .warn{background:var(--wait-bg)}
+.box b{display:block;margin-bottom:2px}
+code,kbd{background:var(--chip);border-radius:7px;padding:1px 7px;font:600 15px ui-monospace,Menlo,monospace}
+table{width:100%;border-collapse:collapse;font-size:15.5px}
+td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+th{font-size:14px;color:var(--soft)}
+footer{font-size:14px;color:var(--soft);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <img src="icons/logo.jpg" alt="Sarcoma Service">
+  <div><h1>Guida a Turni Sarcomi</h1><p>S.C. Chirurgia dei Sarcomi · INT Milano</p></div>
+</header>
+<main>
+<nav class="toc" aria-label="Indice">
+  <a href="#install">1 · Installare</a><a href="#login">2 · Accedere</a><a href="#update">3 · Aggiornare</a><a href="#notif">4 · Notifiche</a><a href="#perm">5 · Permessi</a><a href="#problemi">6 · Se qualcosa non va</a>
+</nav>
+
+<section id="install">
+<h2><i>1</i> Installare l'app sul telefono</h2>
+<div class="box warn"><b>Il passaggio che conta di più</b>Apri il link con il browser giusto: <b style="display:inline">Chrome su Android</b>, <b style="display:inline">Safari su iPhone</b>. Se l'app viene installata da un altro browser (per esempio Samsung Internet, oppure dal browser interno di WhatsApp o della posta) le notifiche spesso non funzionano.</div>
+<h3>Android (Samsung, Google Pixel, Xiaomi…)</h3>
+<ol>
+<li>Apri <b>Chrome</b> (l'icona rotonda rosso-giallo-verde-blu). Se hai ricevuto il link in un messaggio, tienilo premuto e scegli «Apri con Chrome», oppure copialo e incollalo nella barra di Chrome.</li>
+<li>Vai all'indirizzo <code>fioremarco.github.io/turni-sarcomi/turni-sarcomi-app/</code> (oppure inquadra il QR code della guida rapida).</li>
+<li>Tocca i tre puntini <b>⋮</b> in alto a destra → <b>Installa app</b> (a volte si chiama «Aggiungi a schermata Home») → <b>Installa</b>.</li>
+<li>Da ora apri sempre l'app dall'<b>icona sulla schermata Home</b>, non dal browser.</li>
+</ol>
+<div class="box warn"><b>Già installata da Samsung Internet?</b>Tieni premuta l'icona dell'app → <b>Disinstalla</b>, poi rifai i passaggi sopra da Chrome. I tuoi dati non si perdono: stanno sul server.</div>
+<h3>iPhone</h3>
+<ol>
+<li>Apri <b>Safari</b> (non Chrome) e vai all'indirizzo dell'app.</li>
+<li>Tocca il tasto <b>Condividi</b> (quadrato con la freccia in su) → scorri e scegli <b>Aggiungi alla schermata Home</b> → <b>Aggiungi</b>.</li>
+<li>Apri l'app dall'icona sulla Home. Per le notifiche serve <b>iOS 16.4 o più recente</b> (Impostazioni → Generali → Info → Versione software).</li>
+</ol>
+<h3>Computer</h3>
+<p>Basta aprire l'indirizzo con Chrome o Edge e accedere. Sul computer le notifiche push non sono necessarie: gli avvisi compaiono dentro l'app.</p>
+</section>
+
+<section id="login">
+<h2><i>2</i> Accedere la prima volta</h2>
+<ol>
+<li>Scrivi la tua <b>email istituzionale</b>, quella che il dott. Marco Fiore ha autorizzato.</li>
+<li>Tocca «Ricevi il codice»: arriva una email con un codice numerico (controlla anche la posta indesiderata).</li>
+<li>Scrivi il codice nell'app e tocca «Entra». Resti collegato su quel telefono; per cambiare telefono basta accedere di nuovo con la stessa email.</li>
+</ol>
+<div class="box no"><b>«Questa email non è nell'elenco del personale»</b>Le email abilitate le inserisce e le autorizza solo il dott. Marco Fiore: non ci si può registrare da soli. Se la tua non funziona, chiedigli di aggiungerla.</div>
+</section>
+
+<section id="update">
+<h2><i>3</i> Aggiornare l'app e controllare la versione</h2>
+<p>L'app si aggiorna da sola quando la apri con una connessione attiva. Compare un avviso «È disponibile una nuova versione»: tocca <b>Aggiorna</b>.</p>
+<h3>Come sapere quale versione hai</h3>
+<p>Tocca il tuo <b>nome in alto a destra</b>: nella scheda che si apre trovi «Versione dell'app: …». Confrontala con quella che ti indica il dott. Fiore.</p>
+<h3>Se la versione non cambia</h3>
+<ol>
+<li>Chiudi completamente l'app (dal selettore delle app, scorri via la scheda) e riaprila. Ripeti <b>due volte</b>: la prima apertura scarica, la seconda attiva.</li>
+<li>Tocca il nome in alto → <b>Aggiorna i dati ora</b>.</li>
+<li>Controlla di avere internet (Wi-Fi o dati mobili).</li>
+<li>Ultima risorsa: disinstalla l'app e reinstallala (sezione 1).</li>
+</ol>
+</section>
+
+<section id="notif">
+<h2><i>4</i> Attivare le notifiche sul telefono</h2>
+<p>Gli avvisi compaiono sempre dentro l'app. Attivando le notifiche li ricevi anche sul telefono bloccato, con l'app chiusa. Vanno attivate <b>una volta su ogni telefono</b>.</p>
+<h3>Che cosa ricevi</h3>
+<ul>
+<li>Promemoria dei <b>desiderata</b> da inviare (obbligatorio, non si spegne).</li>
+<li>I tuoi <b>turni del giorno</b>, ogni mattina.</li>
+<li>L'<b>esito delle tue richieste</b>: quando il responsabile accetta o nega un permesso, arriva subito una notifica.</li>
+<li>Master Sala Op: promemoria per inserire le assegnazioni di sala operatoria.</li>
+<li>Responsabile: avviso quando arriva una nuova richiesta.</li>
+</ul>
+<h3>Passaggi</h3>
+<ol>
+<li>Apri l'app <b>dall'icona sulla Home</b> (non dal browser).</li>
+<li>Tocca il tuo nome in alto → <b>Impostazioni notifiche</b>.</li>
+<li>In fondo, nella scheda «Notifiche sul telefono», tocca <b>Attiva le notifiche su questo telefono</b>.</li>
+<li>Quando il telefono chiede il permesso, tocca <b>Consenti</b>. L'app mostra «Passo 1 di 3, 2 di 3, 3 di 3».</li>
+<li>Deve comparire «✓ Notifiche attive» e il pulsante <b>Invia una prova</b>: toccalo, arriva una notifica di prova.</li>
+</ol>
+<div class="box ok"><b>Fatto</b>Dopo la prova funzionano anche tutte le altre notifiche. Non occorre rifarlo, salvo reinstallare l'app.</div>
+</section>
+
+<section id="perm">
+<h2><i>5</i> Chiedere un permesso (in due passaggi)</h2>
+<ol>
+<li>Tocca <b>Permessi</b>, scegli che cosa chiedi (Ferie, Permesso, Lezione, Congresso; il personale di supporto: Presente, Smart working, Assente), il giorno, il periodo o la settimana, e tocca <b>Verifica</b>.</li>
+<li>Vedi i <b>colleghi della tua categoria già assenti</b> in quei giorni (solo richieste già accettate: i chirurghi vedono i chirurghi, gli specializzandi gli specializzandi, il personale di supporto il supporto).</li>
+<li>Se va bene, scrivi una nota se serve e tocca <b>Conferma e invia</b>. Il responsabile riceve la notifica sul telefono.</li>
+<li>Quando decide, ricevi la notifica dell'esito e nell'app compare un avviso verde (accettata) o rosso (non accettata), con l'eventuale risposta. Tocca «Ho letto» per toglierlo.</li>
+</ol>
+</section>
+
+<section id="problemi">
+<h2><i>6</i> Se qualcosa non va</h2>
+<table>
+<tr><th>Problema</th><th>Che cosa fare</th></tr>
+<tr><td>Non compare la richiesta di permesso per le notifiche</td><td>Quasi sempre l'app è stata installata da un browser diverso da Chrome. Disinstalla e reinstalla da Chrome (sezione 1). Poi: Impostazioni telefono → App → Turni Sarcomi → Notifiche → attiva.</td></tr>
+<tr><td>Il pulsante «Attiva le notifiche» resta grigio o si ferma al «Passo 1 di 3»</td><td>Non hai risposto alla richiesta, oppure è bloccata. Impostazioni telefono → App → Turni Sarcomi → Autorizzazioni/Notifiche → Consenti, poi riprova.</td></tr>
+<tr><td>Si ferma al «Passo 3 di 3»</td><td>Il telefono non raggiunge il servizio notifiche di Google. Prova con i dati mobili invece del Wi-Fi dell'ospedale, disattiva il risparmio energetico per l'app (Impostazioni → Batteria → Turni Sarcomi → Nessuna restrizione), aggiorna «Google Play Services».</td></tr>
+<tr><td>«Notifiche bloccate»</td><td>Su Android: tieni premuta l'icona → Info app → Notifiche → attiva. Su iPhone: Impostazioni → Notifiche → Turni Sarcomi → Consenti.</td></tr>
+<tr><td>Sull'iPhone non arrivano</td><td>Serve iOS 16.4+ e l'app aggiunta alla Home da Safari. Apri l'app dall'icona (non da Safari) e attiva le notifiche da lì.</td></tr>
+<tr><td>Le notifiche arrivavano e ora no</td><td>Impostazioni notifiche → «Invia una prova». Se non arriva: «Disattiva», poi di nuovo «Attiva». Controlla di non essere in modalità «Non disturbare».</td></tr>
+<tr><td>Vedo una versione vecchia</td><td>Chiudi e riapri l'app due volte; poi nome in alto → «Aggiorna i dati ora» (sezione 3).</td></tr>
+<tr><td>Un permesso accettato non compare nel calendario</td><td>Nome in alto → «Aggiorna i dati ora». Con connessione assente l'app mostra gli ultimi dati salvati.</td></tr>
+<tr><td>Il codice via email non arriva</td><td>Controlla la posta indesiderata, attendi un minuto, poi richiedilo di nuovo. Se la tua email non è abilitata, il codice non parte e l'app te lo dice: scrivi al dott. Fiore.</td></tr>
+</table>
+<div class="box warn"><b>Ancora bloccato?</b>Scrivi al dott. Marco Fiore indicando: modello di telefono, browser da cui hai installato l'app, versione dell'app (nome in alto), e che cosa vedi sullo schermo.</div>
+</section>
+
+<footer>Turni Sarcomi · S.C. Chirurgia dei Sarcomi, INT Milano<br>Gli accessi sono consegnati e autorizzati dal dott. Marco Fiore.</footer>
+</main>
+</body>
+</html>

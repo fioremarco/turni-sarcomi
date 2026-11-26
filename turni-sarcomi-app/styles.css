@@ -400,3 +400,90 @@ main.slide-l{animation:slideInL .22s ease-out}
 .plnew{display:flex; align-items:center; gap:10px; background:var(--chip); border:1.5px dashed var(--line); border-radius:14px; padding:10px 12px; font-size:13px; line-height:1.4;}
 .plnew span{flex:1;} .plnew .btn{flex:none;}
 .plerr{font-weight:600;}
+
+/* ---- richiesta di permesso in due passaggi (2026.11.27): più grande e leggibile sul telefono ---- */
+.p2{display:flex; flex-direction:column; gap:12px;}
+.p2 .stp{display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:var(--soft);}
+.p2 .stp span.on{color:var(--ink);}
+.p2 .stp i{display:inline-grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--chip); font-style:normal; font-size:14px; margin-right:6px;}
+.p2 .stp span.on i{background:var(--accent); color:var(--accent-ink);}
+.p2 .stp .ln{flex:1; height:2px; background:var(--line); border-radius:2px;}
+.p2 .card .pad{gap:14px;}
+.p2 .lbl,.p2 .field>label{font-size:14.5px; font-weight:700; color:var(--ink);}
+.p2 .note{font-size:14px;}
+.p2 .opts{gap:10px;}
+.p2 .opts button{min-height:54px; font-size:16.5px; padding:12px 10px; flex:1 1 calc(50% - 10px);}
+.p2 .opts.o3 button{min-height:54px; font-size:15.5px;}
+.p2 .seg .grp{width:100%;}
+.p2 .seg .grp button{flex:1; min-height:46px; font-size:15.5px; padding:10px 6px;}
+.p2 input[type=date],.p2 input[type=time],.p2 textarea{font-size:17px; min-height:50px;}
+.p2 .sum{font-size:16px; padding:12px 14px; margin:0;}
+.p2 .err{font-size:15px; font-weight:600;}
+.p2 .wday{font-size:15.5px; min-height:52px;}
+.p2 .wkd .wpill{font-size:14.5px;} .p2 .wkd .wpill small{font-size:13px;}
+.p2 .wkd .wadd{font-size:14px;}
+.p2 .wfast button,.p2 .wkinds button{min-height:44px; font-size:15px;}
+.p2 .wknav .rng{font-size:16px;}
+.p2sum{background:var(--ok-bg); border:1.5px solid var(--ok); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:8px;}
+.p2sum .pwho{font-size:14px; color:var(--soft);}
+.p2sum .row{display:flex; align-items:center; gap:10px; font-size:17px; font-weight:700; line-height:1.3; color:var(--ink);}
+.p2sum .dot{flex:none; width:16px; height:16px; border-radius:50%; border:1.5px solid rgba(0,0,0,.25);}
+.p2h{font-size:16px; font-weight:800; margin-top:4px;}
+.p2h small{font-size:13px; font-weight:600; color:var(--soft);}
+.p2ok{background:var(--ok-bg); color:var(--ok); border-radius:14px; padding:14px; font-size:16px; line-height:1.4;}
+.p2list{display:flex; flex-direction:column; gap:8px;}
+.p2day{background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:11px 12px; display:flex; flex-direction:column; gap:7px;}
+.p2day.hi{border-color:var(--bad); background:var(--bad-bg);}
+.p2day .dh{display:flex; justify-content:space-between; gap:8px; font-size:15.5px;}
+.p2day .dh span{font-size:13.5px; font-weight:700; color:var(--soft);}
+.p2day.hi .dh span{color:var(--bad);}
+.p2day .nm{display:flex; flex-wrap:wrap; gap:6px;}
+.p2day .pw{background:var(--chip); border-radius:10px; padding:6px 10px; font-size:14.5px; line-height:1.25;}
+.p2day .pw.soft{opacity:.8; font-style:italic;}
+.pbar{position:fixed; left:12px; right:12px; bottom:calc(var(--navH, 74px) + 10px + env(safe-area-inset-bottom,0px)); z-index:40; display:flex; gap:10px; margin:0 auto; max-width:620px; padding:10px; background:var(--card); border:1.5px solid var(--line); border-radius:18px; box-shadow:0 6px 18px rgba(0,0,0,.18);}
+.pbar .btn{min-height:52px; font-size:17px; flex:1;}
+.pbar .btn.alt{flex:0 0 34%; font-size:16px;}
+.dec-banner{display:flex; flex-direction:column; gap:10px; border-radius:16px; padding:13px 14px; margin-bottom:12px; font-size:15px; line-height:1.4; border:1.5px solid var(--ok); background:var(--ok-bg); color:var(--ink);}
+.dec-banner.no{border-color:var(--bad); background:var(--bad-bg);}
+.dec-banner .dt{display:flex; gap:12px; align-items:flex-start;}
+.dec-banner .ico{flex:none; display:grid; place-items:center; width:34px; height:34px; border-radius:50%; font-size:19px; font-weight:800; background:var(--ok); color:#fff;}
+.dec-banner.no .ico{background:var(--bad);}
+.dec-banner b{font-size:16px;} .dec-banner .dw{font-weight:700;} .dec-banner .dr{color:var(--soft);}
+.dec-banner .da{display:flex; justify-content:flex-end;}
+
+/* ---- leggibilità generale (2026.11.27): testi più grandi, contrasto più alto, bersagli da toccare più ampi ---- */
+:root{--soft:#43594a;}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--soft:#b6c7bb;} }
+body{font-size:16px; line-height:1.45;}
+.top h1{font-size:18.5px;}
+.top small{font-size:12px; opacity:.9;}
+.who{font-size:14.5px; padding:9px 15px;}
+.offline{font-size:14px;}
+.h2,.h2.sm{font-size:13.5px; letter-spacing:.07em;}
+.note{font-size:14px; line-height:1.5;}
+.field>label,.lbl{font-size:14px; color:var(--ink);}
+.btn{font-size:16.5px; padding:15px 16px;}
+.btn.sm{font-size:14.5px; padding:10px 14px;}
+.chip{font-size:13px; padding:4px 11px;}
+.err{font-size:14.5px;}
+.seg .grp button{font-size:15px; padding:10px 14px;}
+.opts button{font-size:15.5px; padding:13px 10px;}
+.req .t b{font-size:16.5px;} .req ul{font-size:15px; gap:5px;}
+.wknav .rng{font-size:17px;} .wknav .pub,.wknav.sm .pub{font-size:13px;}
+.wknav.sm .rng{font-size:16px;}
+.day{font-size:13px; min-width:48px;} .day b{font-size:19px;}
+.pill{font-size:14.5px; padding:5px 10px;}
+.tbl th,.tbl td{font-size:14px; min-width:112px;} .tbl th{font-size:13.5px;}
+.tbl .nm{font-size:14.5px; min-width:98px; max-width:98px;}
+.tbl .pill{font-size:13.5px; padding:4px 7px;}
+.tbl tr.catrow td{font-size:12.5px;}
+.prot,.pk small,.str small,.hv small,.pill.lock small{font-size:12.5px;}
+.sth{font-size:12.5px;}
+.swipehint,.pllegend{font-size:13px;}
+.pill.new::after,.pill.gone::after,.pill.pend::after{font-size:11.5px;}
+.nav-pill button{font-size:12px;}
+.nav-pill.n5 button{font-size:11.5px;} .nav-pill.n6 button{font-size:11px; letter-spacing:-.01em;}
+.dl-banner,.nt-card{font-size:15px;}
+input,select,textarea{font-size:17px;}
+.plbar span,.plstat,.plnew{font-size:14.5px;}
+.sugnote{background:var(--wait-bg); border-left:4px solid var(--wait); border-radius:10px; padding:10px 12px; margin:10px 0; color:var(--ink);}

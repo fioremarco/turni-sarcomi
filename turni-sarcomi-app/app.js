@@ -66,7 +66,7 @@ var S = {
   cal:{view:'giorno', weekIdx:0, day:0, onlyMe:false},
   or:{mon:null, day:0, rows:[], rooms:null, err:'', room:'', p1:'', p2:'', selKey:'', rev:0, busy:false},
   solv:{rows:[], end:false, shown:15, mode:'all', yr:0, yrData:{}, yrBusy:false, s2:'', s3:'', sk:'', day:'', err:'', busy:false, selKey:'', rev:0},
-  perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', wmon:'', wk:{}, brush:null, note:'', busy:false, err:''},
+  perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', wmon:'', wk:{}, brush:null, note:'', busy:false, err:'', step:'edit', all:false},
   adm:{tab:'todo', busy:false},
   plan:{sec:'prog', idx:-1, mon:'', day:0, draft:{}, base:{}, cells:{}, col:'', busy:false, err:'', showLog:false, logAll:false, log:[], logLoaded:false, logBusy:false, logErr:''},
   push:{key:'', ready:false, on:false, busy:false, msg:''},
@@ -644,12 +644,60 @@ function permSummary(P){
   if(P.mode==='week'){ var n = r.items.length; return n+' giorn'+(n===1?'o':'i')+' pront'+(n===1?'o':'i')+' da inviare: '+groupItems(r.items).map(function(g){ return groupTxt(g).replace(' — ',': '); }).join(' · '); }
   var g = groupItems(r.items)[0]; return groupTxt(g).replace(' — ',': ');
 }
+// colleghi della stessa categoria già assenti (richieste ACCETTATE) nei giorni chiesti: chirurghi con chirurghi, specializzandi con specializzandi, supporto con supporto
+function permPeers(items){
+  var P = S.perm, tgt = (P.who==='other' && paFor()) ? paFor() : S.me.id, cat = permCat(), want = {}, ids = {}, byDay = {}, total = 0;
+  items.forEach(function(it){ want[it.d] = 1; });
+  (S.dir||[]).forEach(function(d){ if(d.category===cat && d.id!==tgt){ ids[d.id] = d; total++; } });
+  (S.approved||[]).forEach(function(a){
+    var d = ids[a.staff_id], day = String(a.day).slice(0,10);
+    if(!d || !want[day] || !KINDS[a.kind] || !(ABSENT[a.kind] || a.kind==='sw')) return;
+    (byDay[day] = byDay[day] || []).push({name:d.name, kind:a.kind, hours:a.hours||''});
+  });
+  var days = Object.keys(byDay).sort();
+  days.forEach(function(k){ byDay[k].sort(function(x,y){ return x.name.localeCompare(y.name,'it'); }); });
+  return {total:total, byDay:byDay, days:days, ndays:Object.keys(want).length};
+}
+function catPlural(c){ return c==='chirurghi' ? 'chirurghi' : c==='specializzandi' ? 'specializzandi' : 'colleghi di supporto'; }
+function permCheckHtml(){
+  var P = S.perm, r = permDays(P), h = '';
+  if(r.err || !r.items.length){ P.step = 'edit'; return ''; }
+  var gs = groupItems(r.items), pe = permPeers(r.items), cat = permCat(), forOther = P.who==='other' && paFor();
+  h += '<div class="p2sum"><div class="pwho">'+(forOther ? 'Richiesta di <b>'+esc(paForName())+'</b>' : 'La tua richiesta')+'</div>'+
+    gs.map(function(g){ var k = KINDS[g.k]; return '<div class="row"><span class="dot" style="background:'+(k?k.bg:'#ccc')+'"></span><span>'+esc(groupTxt(g))+'</span></div>'; }).join('')+'</div>';
+  h += '<div class="p2h">Colleghi già assenti <small>('+esc(catPlural(cat))+', richieste accettate)</small></div>';
+  if(!pe.days.length){
+    h += '<div class="p2ok"><b>Nessun collega è già assente</b> in '+(pe.ndays===1?'quel giorno':'questi giorni')+'. Via libera.</div>';
+  } else {
+    var cap = P.all ? 999 : 8, shown = pe.days.slice(0, cap);
+    h += '<div class="p2list">'+shown.map(function(day){
+      var L = pe.byDay[day], nAbs = L.filter(function(x){ return ABSENT[x.kind]; }).length;
+      return '<div class="p2day'+(pe.total && nAbs*2>=pe.total ? ' hi' : '')+'"><div class="dh"><b>'+esc(dayLabel(day))+'</b><span>'+(nAbs ? nAbs+' di '+pe.total+' assent'+(nAbs===1?'e':'i') : (pe.total?'':''))+'</span></div><div class="nm">'+
+        L.map(function(x){ var k = KINDS[x.kind]; return '<span class="pw'+(ABSENT[x.kind]?'':' soft')+'"><b>'+esc(x.name)+'</b> '+esc(k.t)+(x.hours?' '+esc(x.hours):'')+'</span>'; }).join('')+'</div></div>';
+    }).join('')+'</div>';
+    if(pe.days.length>cap) h += '<button type="button" class="btn alt sm" id="pAll">Mostra tutti i '+pe.days.length+' giorni</button>';
+    var free = pe.ndays - pe.days.length;
+    if(free>0) h += '<div class="note">'+(free===1?'Negli altri giorni (1)':'Negli altri '+free+' giorni')+' nessun collega è già assente.</div>';
+  }
+  h += '<div class="field"><label for="pNote">Note per il responsabile (facoltative)</label><textarea id="pNote" rows="2" placeholder="Motivo o indicazioni utili">'+esc(P.note)+'</textarea></div>'+
+    '<div class="err" id="pErr">'+esc(P.err)+'</div>'+
+    '<div class="note">'+(isTit()?'Sei il titolare: la richiesta viene registrata subito nel calendario.':'Con "Conferma e invia" la richiesta arriva al responsabile, che riceve la notifica sul telefono. Nessun altro la vede finché non la accetta.')+'</div>';
+  return h;
+}
 function permHtml(){
-  var P = S.perm, h = '', PK = permKinds();
+  var P = S.perm, h = '<div class="p2">', PK = permKinds();
   if(P.k && PK.indexOf(P.k)<0) P.k = '';
-  if(isTit()) h += '<div class="note">Le richieste che fai tu sono accettate subito e compaiono nel calendario.</div>';
-  else if(isAdmin()) h += '<div class="note">Non sei il titolare della programmazione: le tue richieste arrivano a <b>'+esc(S.me.titolare_name||'al titolare')+'</b>, che le accetta o le nega.</div>';
+  var chk = P.step==='check';
+  if(chk && !permDays(P).items.length) chk = P.step = 'edit';
+  h += '<div class="stp"><span class="'+(chk?'':'on')+'"><i>1</i> Verifica</span><span class="ln"></span><span class="'+(chk?'on':'')+'"><i>2</i> Conferma</span></div>';
+  if(!chk){
+    if(isTit()) h += '<div class="note">Le richieste che fai tu sono accettate subito e compaiono nel calendario.</div>';
+    else if(isAdmin()) h += '<div class="note">Non sei il titolare della programmazione: le tue richieste arrivano a <b>'+esc(S.me.titolare_name||'al titolare')+'</b>, che le accetta o le nega.</div>';
+  }
   h += notifHtml('perm');
+  if(chk){
+    h += permCheckHtml();
+  } else {
   if(paFor()){
     h += '<div class="field"><span class="lbl">Stai inviando la richiesta</span><div class="seg"><div class="grp" id="pWho"><button type="button" data-pwho="" aria-pressed="'+(P.who!=='other')+'">Per me</button><button type="button" data-pwho="other" aria-pressed="'+(P.who==='other')+'">Per '+esc(paForName())+'</button></div></div></div>';
     if(P.who==='other') h += '<div class="note">La richiesta è a nome di <b>'+esc(paForName())+'</b> e arriva al responsabile come se l\'avesse inviata lui. Tu puoi ritirarla finché è in attesa.</div>';
@@ -665,13 +713,16 @@ function permHtml(){
     if(!P.whole) h += '<div class="field"><div class="hours"><div class="field"><label for="pH1">Dalle</label><input type="time" id="pH1" value="'+esc(P.h1)+'"></div><div class="field"><label for="pH2">Alle</label><input type="time" id="pH2" value="'+esc(P.h2)+'"></div></div></div>';
   } else {
     h += '<div class="hours"><div class="field"><label for="pD">Dal giorno</label><input type="date" id="pD" min="'+fYmd(new Date())+'" value="'+esc(P.d)+'"></div><div class="field"><label for="pD2">Al giorno</label><input type="date" id="pD2" min="'+esc(P.d||fYmd(new Date()))+'" value="'+esc(P.d2)+'"></div></div>'+
-      '<div class="note">Per tutto il periodo si intendono giornate intere'+(KINDS[P.k] && KINDS[P.k].nowe ? ' (sabato e domenica esclusi: per quei giorni scegli "Un giorno").' : ' (sabato e domenica compresi).')+'</div>';
+      '<div class="note">Giornate intere'+(KINDS[P.k] && KINDS[P.k].nowe ? ', sabato e domenica esclusi (per quei giorni usa "Un giorno").' : ', sabato e domenica compresi.')+'</div>';
   }
-  h += '<div class="sum" id="pSum">'+esc(permSummary(P))+'</div>'+
-    '<div class="field"><label for="pNote">Note (facoltative)</label><textarea id="pNote" rows="2" placeholder="Motivo o indicazioni utili">'+esc(P.note)+'</textarea></div>'+
-    '<div class="err" id="pErr">'+esc(P.err)+'</div><button class="btn" id="pSend"'+(P.busy?' disabled':'')+'>'+(P.busy?'Invio in corso…':(P.who==='other'&&paFor()?'Invia per '+esc(paForName()):isTit()?'Registra':'Invia la richiesta'))+'</button>'+
-    '<div class="note">'+(isTit()?'':'La richiesta arriva direttamente al responsabile: nessun altro la vede finché non la accetta.')+'</div></div></div>';
-  h += '<div class="note">Per ricevere il promemoria anche come notifica del telefono: <button class="lnk" id="goSet">Impostazioni notifiche</button>.</div>';
+  h += '<div class="sum" id="pSum">'+esc(permSummary(P))+'</div><div class="err" id="pErr">'+esc(P.err)+'</div></div></div>';
+  }
+  h += '</div>';
+  // barra fissa in basso: sempre visibile, senza dover scorrere la pagina
+  h += '<div class="pbar">'+(chk ? '<button class="btn alt" id="pBack">‹ Modifica</button><button class="btn" id="pSend"'+(P.busy?' disabled':'')+'>'+(P.busy?'Invio in corso…':(P.who==='other'&&paFor()?'Conferma e invia per '+esc(paForName()):isTit()?'Conferma e registra':'Conferma e invia'))+'</button>'
+        : '<button class="btn" id="pCheck">Verifica ›</button>')+'</div><div class="plspace"></div>';
+  if(chk) return h;
+  h += '<div class="note">Per ricevere avvisi anche sul telefono (promemoria ed esito delle richieste): <button class="lnk" id="goSet">Impostazioni notifiche</button>.</div>';
   var mine = S.props.filter(function(p){ return p.staff_id===S.me.id || (paFor() && p.staff_id===paFor()); });
   h += '<section><div class="h2">Le mie richieste</div><div class="card">';
   if(!mine.length) h += '<div class="empty">Nessuna richiesta ancora.</div>';
@@ -732,6 +783,13 @@ function bindPerm(){
   if((b=$('pH1'))) b.onchange = function(){ P.h1=this.value; upd(); };
   if((b=$('pH2'))) b.onchange = function(){ P.h2=this.value; upd(); };
   if((b=$('pNote'))) b.oninput = function(){ P.note = this.value; };
+  if((b=$('pCheck'))) b.onclick = function(){
+    var r = permDays(P);
+    if(r.err){ P.err = r.err; if($('pErr')) $('pErr').textContent = r.err; return; }
+    P.err = ''; P.step = 'check'; P.all = false; render(); window.scrollTo(0,0);
+  };
+  if((b=$('pBack'))) b.onclick = function(){ P.step = 'edit'; P.err = ''; render(); window.scrollTo(0,0); };
+  if((b=$('pAll'))) b.onclick = function(){ P.all = true; render(); };
   if((b=$('pSend'))) b.onclick = sendProposal;
   bindNotif();
   if((b=$('goSet'))) b.onclick = function(){ S.tab='set'; render(); window.scrollTo(0,0); };
@@ -751,6 +809,49 @@ function notifyNewRequest(pid){
     return fetch(CFG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/reminder', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+tok, 'apikey':CFG.SUPABASE_ANON_KEY}, body:JSON.stringify({notify:'new_request', id:pid})});
   }).catch(function(){});
 }
+// esito di una richiesta: avviso sul telefono di chi l'aveva inviata (lo chiede l'app del titolare subito dopo la decisione)
+function notifyDecision(pid){
+  if(!pid || !sb) return;
+  sb.auth.getSession().then(function(x){
+    var tok = x.data && x.data.session && x.data.session.access_token; if(!tok) return;
+    return fetch(CFG.SUPABASE_URL.replace(/\/$/,'')+'/functions/v1/reminder', {method:'POST', headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+tok, 'apikey':CFG.SUPABASE_ANON_KEY}, body:JSON.stringify({notify:'decision', id:pid})});
+  }).catch(function(){});
+}
+// avviso dentro l'app: richieste decise di recente che chi le ha inviate non ha ancora "visto"
+function decKey(){ return 'turni.dec.'+(S.me?S.me.id:''); }
+function decSeen(){
+  if(S.decSeen && S.decSeenFor===decKey()) return S.decSeen;
+  S.decSeenFor = decKey();
+  var raw = lsGet(decKey()), m = {};
+  if(raw){ try{ m = JSON.parse(raw) || {}; }catch(e){ m = {}; } }
+  S.decSeen = m; S.decFresh = !raw;
+  return m;
+}
+function decSave(){ var m = S.decSeen || {}, ks = Object.keys(m); if(ks.length>200){ ks.sort().slice(0, ks.length-200).forEach(function(k){ delete m[k]; }); } lsSet(decKey(), JSON.stringify(m)); }
+function decPending(){
+  if(!S.me || !S.props) return [];
+  var seen = decSeen(), now = Date.now(), mine = S.props.filter(function(p){
+    return (p.status==='approved' || p.status==='denied') && p.decided_at && (p.staff_id===S.me.id || p.entered_by===S.me.id || (paFor() && p.staff_id===paFor()));
+  });
+  if(S.decFresh){   // prima volta su questo telefono: le decisioni già esistenti non sono "novità"
+    mine.forEach(function(p){ seen[p.id+'|'+p.decided_at] = 1; }); S.decFresh = false; decSave(); return [];
+  }
+  return mine.filter(function(p){
+    if(seen[p.id+'|'+p.decided_at]) return false;
+    if(now - new Date(p.decided_at).getTime() > 21*86400000) return false;
+    if(p.status==='approved' && p.staff_id===S.me.id && isTit() && new Date(p.decided_at) - new Date(p.created_at) < 5000) return false;   // le richieste del titolare sono accettate al momento dell'invio
+    return true;
+  }).sort(function(a,b){ return a.decided_at<b.decided_at ? 1 : -1; });
+}
+function decBanner(){
+  var L = decPending(); if(!L.length) return '';
+  return L.slice(0,4).map(function(p){
+    var ok = p.status==='approved', gs = groupItems(p.items||[]), g0 = gs[0], when = !gs.length ? '' : (gs.length===1 && g0.n===1 ? dayLabel(g0.from) : dayLabel(gs[0].from)+' → '+dayLabel(gs[gs.length-1].to));
+    var who = p.staff_id!==S.me.id ? ' di <b>'+esc(nameOfStaff(p.staff_id))+'</b>' : '';
+    return '<div class="dec-banner '+(ok?'ok':'no')+'"><div class="dt"><span class="ico">'+(ok?'✓':'✕')+'</span><div><b>Richiesta'+who+' '+(ok?'accettata':'non accettata')+'</b><br><span class="dw">'+esc(when)+'</span>'+(p.reply?'<br><span class="dr">«'+esc(p.reply)+'»</span>':'')+'</div></div>'+
+      '<div class="da"><button class="btn sm alt" data-dseen="'+esc(p.id+'|'+p.decided_at)+'">Ho letto</button></div></div>';
+  }).join('') + (L.length>4 ? '<div class="note">… e altre '+(L.length-4)+' risposte.</div>' : '');
+}
 // comunica all'archivio la versione dell'app in uso (la console mostra chi non ha ancora aggiornato)
 function reportVersion(){
   if(!S.me || !sb || S.offline) return;
@@ -767,7 +868,7 @@ function sendProposal(){
     P.busy=false;
     if(x.error){ P.err = errMsg(x.error); return render(); }
     notifyNewRequest(x.data);
-    P.d=''; P.d2=''; P.h1=''; P.h2=''; P.wk={}; P.note=''; toast(forOther?'Richiesta inviata per '+paForName()+' ✓':isTit()?'Registrato nel calendario':'Richiesta inviata ✓');
+    P.d=''; P.d2=''; P.h1=''; P.h2=''; P.wk={}; P.note=''; P.step='edit'; P.all=false; toast(forOther?'Richiesta inviata per '+paForName()+' ✓':isTit()?'Registrato nel calendario':'Richiesta inviata ✓');
     return refresh(true);
   }, function(e){ P.busy=false; P.err=errMsg(e); render(); });
 }
@@ -859,14 +960,15 @@ function solvBanner(){
   return '<div class="nt-card warn"><div class="nt-h">Solventi AG</div><div>Ricordati di inserire le assegnazioni dei pazienti solventi del prossimo mese ('+nm+').</div><div class="nt-b"><button class="btn sm" data-ng="solv">Apri '+nm+'</button><button class="nt-x" data-nd="solventi|'+per+'">Nascondi</button></div></div>';
 }
 function notifHtml(where){
-  if(where==='cal') return deadlineBanner(true)+dayCardHtml()+salaBanner()+solvBanner();
-  if(where==='perm') return deadlineBanner();
+  if(where==='cal') return decBanner()+deadlineBanner(true)+dayCardHtml()+salaBanner()+solvBanner();
+  if(where==='perm') return decBanner()+deadlineBanner();
   if(where==='sala') return salaBanner()+solvBanner();
   return '';
 }
 function bindNotif(){
   var b;
   if((b=$('dlGo'))) b.onclick = function(){ S.tab='perm'; render(); window.scrollTo(0,0); };
+  document.querySelectorAll('[data-dseen]').forEach(function(x){ x.onclick = function(){ decSeen()[x.dataset.dseen] = 1; decSave(); render(); }; });
   document.querySelectorAll('[data-nd]').forEach(function(x){ x.onclick = function(){ var p = x.dataset.nd.split('|'); lsSet(ntDismissKey(p[0], p[1]), '1'); render(); }; });
   document.querySelectorAll('[data-ng]').forEach(function(x){ x.onclick = function(){ goTab(x.dataset.ng); }; });
 }
@@ -1066,6 +1168,7 @@ function decide(id, status){
     S.adm.busy=false;
     if(r.error) return toast(errMsg(r.error));
     toast(status==='approved'?'Accettata ✓':status==='denied'?'Negata':'Riportata in attesa');
+    if(status!=='pending') notifyDecision(id);
     return refresh(true);
   }, function(e){ S.adm.busy=false; toast(errMsg(e)); });
 }
@@ -1109,6 +1212,7 @@ function orHtml(){
   var O = S.or, mon = pYmd(O.mon), sun = addD(mon,6), todayS = fYmd(new Date()), ds = orDayStr(), i;
   var rng = mon.getDate()+(mon.getMonth()!==sun.getMonth()?' '+MESI[mon.getMonth()]:'')+' – '+sun.getDate()+' '+MESI[sun.getMonth()]+' '+sun.getFullYear();
   var h = notifHtml('sala')+'<div class="wknav"><button class="ic" id="oPrev" aria-label="Settimana precedente">‹</button><div class="mid"><div class="rng">'+rng+'</div>'+(ds===todayS?'':'<button class="todaybtn" id="oToday">Torna a oggi</button>')+'</div><button class="ic" id="oNext" aria-label="Settimana successiva">›</button></div>';
+  h += '<div class="note sugnote"><b>Sono suggerimenti.</b> Quello che inserisci qui arriva all\'amministratore come proposta per programmare la settimana. Nel calendario di tutti compare solo la settimana <b>pubblicata</b> dall\'amministratore, che è quella che fa fede.</div>';
   h += '<div class="days" role="tablist">';
   for(i=0;i<7;i++){ var d = addD(mon,i), dsi = fYmd(d), n = O.rows.filter(function(x){ return x.day===dsi; }).length + (solvOn(dsi)?1:0);
     h += '<button class="day'+(dsi===todayS?' today':'')+'" role="tab" data-od="'+i+'" aria-selected="'+(O.day===i)+'">'+D_SHORT[i]+'<b>'+d.getDate()+'</b>'+(n?'<span class="dot">'+n+'</span>':'')+'</button>'; }
@@ -1484,7 +1588,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.26';
+var APP_VERSION = '2026.11.27';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }

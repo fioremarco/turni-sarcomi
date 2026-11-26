@@ -166,6 +166,7 @@ function makeRequestSources(storage, warn){
           var status = o.s==='a' ? 'approved' : o.s==='d' ? 'denied' : 'pending';
           var r = await sb.rpc('decide_proposal', {p_id:u, p_status:status, p_reply:o.n||''});
           if(r.error) throw r.error;
+          if(status!=='pending') pushSend({notify:'decision', id:u}).catch(function(){});   // avviso di esito sul telefono di chi ha chiesto
         },
         delete: async function(){}
       };
