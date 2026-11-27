@@ -641,7 +641,7 @@ function permWeekHtml(P, PK){
   h += '<div class="wbr"><div class="lbl">1 · Che cosa chiedi</div><div class="wkinds k'+PK.length+'" id="pwKinds">'+PK.map(function(k){ return '<button type="button" data-bk="'+k+'" aria-pressed="'+(B.k===k)+'">'+esc(KINDS[k].l)+'</button>'; }).join('')+'</div>';
   if(KINDS[B.k].hr){
     h += '<div class="seg"><div class="grp"><button type="button" data-bw="w" aria-pressed="'+B.whole+'">Giornata intera</button><button type="button" data-bw="o" aria-pressed="'+(!B.whole)+'">Orario</button></div></div>';
-    if(!B.whole) h += '<div class="hours"><div class="field"><label for="bH1">Dalle</label><input type="time" id="bH1" value="'+esc(B.h1||'')+'"></div><div class="field"><label for="bH2">Alle</label><input type="time" id="bH2" value="'+esc(B.h2||'')+'"></div></div>';
+    if(!B.whole) h += '<div class="hours">'+timeField('bH1','Dalle',B.h1)+timeField('bH2','Alle',B.h2)+'</div>';
   }
   h += '<div class="lbl">2 · Tocca i giorni a cui vuoi applicarlo</div><div class="wfast"><button type="button" data-wf="wd">Lun–Ven</button>'+(nd===7?'<button type="button" data-wf="all">Tutti i giorni</button>':'')+'<button type="button" data-wf="clr">Svuota</button></div></div><div class="wkp">';
   for(i=0;i<nd;i++){
@@ -703,6 +703,30 @@ function dpFull(v){ return dayLabel(v)+' '+pYmd(v).getFullYear(); }
 function dateField(id, label, v){
   return '<div class="field"><span class="lbl" id="'+id+'L">'+label+'</span><button type="button" class="dpick'+(v?'':' empty')+'" id="'+id+'" aria-labelledby="'+id+'L '+id+'">'+ICON.cal+'<span>'+(v ? esc(dpFull(v)) : 'Tocca per scegliere il giorno')+'</span></button></div>';
 }
+var CLOCK_SVG = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+function timeField(id, label, v){
+  return '<div class="field"><span class="lbl" id="'+id+'L">'+label+'</span><button type="button" class="dpick'+(v?'':' empty')+'" id="'+id+'" aria-labelledby="'+id+'L '+id+'">'+CLOCK_SVG+'<span>'+(v ? esc(v) : 'Scegli l\'ora')+'</span></button></div>';
+}
+function timePick(title, cur, def, onPick){
+  var t = /^\d{1,2}:\d{2}/.test(cur||'') ? cur : (/^\d{1,2}:\d{2}/.test(def||'') ? def : '08:00'), H = parseInt(t.split(':')[0],10), Mi = Math.round(parseInt(t.split(':')[1],10)/5)*5;
+  if(Mi>55) Mi = 55;
+  var s = sheet('<h3>'+esc(title)+'</h3><div class="tbig" id="tvB"></div><div class="lbl">Ora</div><div class="dpg tpg" id="tvH"></div><div class="lbl">Minuti</div><div class="dpg tpg" id="tvM"></div><div class="dpf"><button type="button" class="btn alt" id="tvX">Annulla</button><button type="button" class="btn" id="tvOk">Imposta</button></div>');
+  function z(n){ return (n<10?'0':'')+n; }
+  function draw(){
+    var h = '', i;
+    for(i=0;i<24;i++) h += '<button type="button" data-th="'+i+'" class="'+(i===H?'sel':'')+'" aria-label="ore '+i+'">'+z(i)+'</button>';
+    $('tvH').innerHTML = h; h = '';
+    for(i=0;i<60;i+=5) h += '<button type="button" data-tm="'+i+'" class="'+(i===Mi?'sel':'')+'" aria-label="minuti '+i+'">'+z(i)+'</button>';
+    $('tvM').innerHTML = h;
+    $('tvB').textContent = z(H)+':'+z(Mi);
+    $('tvOk').textContent = 'Imposta '+z(H)+':'+z(Mi);
+    [].forEach.call($('tvH').querySelectorAll('[data-th]'), function(x){ x.onclick = function(){ H = parseInt(x.dataset.th,10); draw(); }; });
+    [].forEach.call($('tvM').querySelectorAll('[data-tm]'), function(x){ x.onclick = function(){ Mi = parseInt(x.dataset.tm,10); draw(); }; });
+  }
+  $('tvX').onclick = s.close;
+  $('tvOk').onclick = function(){ var v = z(H)+':'+z(Mi); s.close(); onPick(v); };
+  draw();
+}
 function datePick(cur, min, onPick){
   var base = pYmd(cur || min || fYmd(new Date())), Y = base.getFullYear(), M = base.getMonth(), today = fYmd(new Date());
   var minM = pYmd(min).getFullYear()*12 + pYmd(min).getMonth();
@@ -748,7 +772,7 @@ function permHtml(){
   } else if(P.mode==='day'){
     h += dateField('pD','Giorno',P.d)+
       '<div class="field"><span class="lbl">Durata</span><div class="seg"><div class="grp"><button type="button" id="pwWhole" aria-pressed="'+P.whole+'">Giornata intera</button><button type="button" id="pwHrs" aria-pressed="'+(!P.whole)+'">Orario</button></div></div></div>';
-    if(!P.whole) h += '<div class="field"><div class="hours"><div class="field"><label for="pH1">Dalle</label><input type="time" id="pH1" value="'+esc(P.h1)+'"></div><div class="field"><label for="pH2">Alle</label><input type="time" id="pH2" value="'+esc(P.h2)+'"></div></div></div>';
+    if(!P.whole) h += '<div class="field"><div class="hours">'+timeField('pH1','Dalle',P.h1)+timeField('pH2','Alle',P.h2)+'</div></div>';
   } else {
     h += '<div class="hours">'+dateField('pD','Dal giorno',P.d)+dateField('pD2','Al giorno',P.d2)+'</div>'+
       '<div class="note">Giornate intere'+(KINDS[P.k] && KINDS[P.k].nowe ? ', sabato e domenica esclusi (per quei giorni usa "Un giorno").' : ', sabato e domenica compresi.')+'</div>';
@@ -798,8 +822,8 @@ function bindPerm(){
   function paint(ds){ P.wk[ds] = {k:B.k, whole:B.whole, h1:B.whole?'':B.h1, h2:B.whole?'':B.h2}; }
   document.querySelectorAll('[data-bk]').forEach(function(x){ x.onclick = function(){ B.k = x.dataset.bk; if(!KINDS[B.k].hr) B.whole = true; P.err=''; render(); }; });
   document.querySelectorAll('[data-bw]').forEach(function(x){ x.onclick = function(){ B.whole = x.dataset.bw==='w'; P.err=''; render(); }; });
-  if((b=$('bH1'))) b.onchange = function(){ B.h1 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
-  if((b=$('bH2'))) b.onchange = function(){ B.h2 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
+  if((b=$('bH1'))) b.onclick = function(){ timePick('Dalle', B.h1, '08:00', function(v){ B.h1 = v; P.err=''; render(); }); };
+  if((b=$('bH2'))) b.onclick = function(){ timePick('Alle', B.h2, B.h1 || '13:00', function(v){ B.h2 = v; P.err=''; render(); }); };
   document.querySelectorAll('[data-wkd]').forEach(function(x){ x.onclick = function(){
     var ds = x.dataset.wkd, e = P.wk[ds];
     if(e && e.k===B.k && e.whole===B.whole && (e.whole || (e.h1===B.h1 && e.h2===B.h2))){ delete P.wk[ds]; P.err=''; render(); return; }
@@ -818,8 +842,8 @@ function bindPerm(){
   if((b=$('pwHrs'))) b.onclick = function(){ P.whole=false; P.err=''; render(); };
   if((b=$('pD'))) b.onclick = function(){ datePick(P.d, fYmd(new Date()), function(v){ P.d = v; if(P.d2 && P.d2<v) P.d2 = ''; P.err = ''; render(); }); };
   if((b=$('pD2'))) b.onclick = function(){ datePick(P.d2 || P.d, P.d || fYmd(new Date()), function(v){ P.d2 = v; P.err = ''; render(); }); };
-  if((b=$('pH1'))) b.onchange = function(){ P.h1=this.value; upd(); };
-  if((b=$('pH2'))) b.onchange = function(){ P.h2=this.value; upd(); };
+  if((b=$('pH1'))) b.onclick = function(){ timePick('Dalle', P.h1, '08:00', function(v){ P.h1 = v; P.err=''; render(); }); };
+  if((b=$('pH2'))) b.onclick = function(){ timePick('Alle', P.h2, P.h1 || '13:00', function(v){ P.h2 = v; P.err=''; render(); }); };
   if((b=$('pNote'))) b.oninput = function(){ P.note = this.value; };
   if((b=$('pCheck'))) b.onclick = function(){
     var r = permDays(P);
@@ -1676,7 +1700,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = 'v2.29';
+var APP_VERSION = 'v2.30';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }

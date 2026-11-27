@@ -544,3 +544,7 @@ input,select,textarea{font-size:17px;}
 .dpg button.sel{background:var(--accent); color:#fff}
 .dpf{display:flex; gap:10px}
 .dpf .btn{flex:1}
+.tpg{grid-template-columns:repeat(6,1fr); margin:6px 0 10px}
+.tpg button{min-height:38px; font-size:15px}
+.tbig{font-size:34px; font-weight:800; text-align:center; letter-spacing:1px; color:var(--accent)}
+.sheet .lbl{font-size:12.5px; font-weight:800; color:var(--soft)}
