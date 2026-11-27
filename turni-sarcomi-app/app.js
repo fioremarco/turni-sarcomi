@@ -13,14 +13,14 @@ var MESI = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','d
 var CAT_LABEL = {chirurghi:'Chirurghi', specializzandi:'Specializzandi', datamanager:'Personale di supporto', segreteria:'Personale di supporto'};
 var CAT_IDS = ['chirurghi','specializzandi','datamanager'];
 var KINDS = {
-  ass: {l:'Ferie',                      t:'Ferie',         bg:'#f8d7d7', cnt:2},
-  per: {l:'Permesso',                   t:'Permesso',      bg:'#fde7c8', cnt:2, hr:'opt'},
-  lez: {l:'Lezione',                    t:'Lezione',       bg:'#e4dcf7', cnt:1, hr:'opt'},
-  cong:{l:'Congresso / meeting',        t:'Congresso',     bg:'#d9e8fb', cnt:1, hr:'opt'},
+  ass: {l:'Ferie',                      t:'Ferie',         bg:'#fbe2e2', cnt:2},
+  per: {l:'Permesso',                   t:'Permesso',      bg:'#fbe2e2', cnt:2, hr:'opt'},
+  lez: {l:'Lezione',                    t:'Lezione',       bg:'#efe6fb', cnt:1, hr:'opt'},
+  cong:{l:'Congresso / meeting',        t:'Congresso',     bg:'#efe6fb', cnt:1, hr:'opt'},
   // personale di supporto: Presente, Smart working, Assente (giornata intera, orario o periodo; nei periodi sabato e domenica sono esclusi)
-  pres:{l:'Presente',                   t:'Presente',      bg:'#d8f0de', hr:'opt', nowe:1},
-  sw:  {l:'Smart working',              t:'Smart-Working', bg:'#e6e9ee', hr:'opt', nowe:1},
-  abs: {l:'Assente',                    t:'Assente',       bg:'#f8d7d7', hr:'opt', nowe:1}
+  pres:{l:'Presente',                   t:'Presente',      bg:'#eef0f4', hr:'opt', nowe:1},
+  sw:  {l:'Smart working',              t:'Smart-Working', bg:'#eef0f4', hr:'opt', nowe:1},
+  abs: {l:'Assente',                    t:'Assente',       bg:'#fbe2e2', hr:'opt', nowe:1}
 };
 var CAT_KINDS = {chirurghi:['ass','per','lez','cong'], specializzandi:['ass','per','lez','cong'], datamanager:['pres','sw','abs'], segreteria:['pres','sw','abs']};
 var ABSENT = {ass:1, per:1, lez:1, cong:1, abs:1};
@@ -238,6 +238,9 @@ function fetchAllApproved(jan1){
   }
   return next(0);
 }
+/* se l'utente sta scrivendo in un campo, un aggiornamento in background non deve ridisegnare la pagina (si perderebbero cursore e testo) */
+function typingNow(){ var a = document.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type!=='button' && $('app') && $('app').contains(a)); }
+document.addEventListener('focusout', function(){ setTimeout(function(){ if(S.stale && S.me && !typingNow() && !document.querySelector('.veil')){ S.stale = false; render(); } }, 700); });
 function refresh(rerender){
   if(!sb) return Promise.resolve();
   // un aggiornamento già in corso potrebbe aver letto i dati prima della modifica appena fatta: ne rifaccio uno subito dopo
@@ -280,7 +283,7 @@ function refresh(rerender){
   }).then(function(){
     S.loading = false;
     if(S.revokedNow){ S.revokedNow = false; return revoked(); }
-    if(rerender && S.me) render();
+    if(rerender && S.me){ if(typingNow()) S.stale = true; else render(); }
     updateBadge(); reportVersion();
     if(S.again){ S.again = false; return refresh(true); }
   }, function(e){ S.loading=false; S.again=false; throw e; });
@@ -315,10 +318,10 @@ function render(){
   }).join('')+'</div>'+(isAdmin() && isWide() ? '<button class="navlink" id="goConsole" title="Apri la console di programmazione">Console ↗</button>' : '')+'</nav>' : '';
   var keepScroll = window.scrollY;
   $('app').innerHTML = '<div class="app"><header class="top"><div class="brand"><span class="logochip"><img src="icons/logo.jpg" alt="Sarcoma Service"></span><div><h1>Turni Sarcomi</h1><small>Chirurgia dei Sarcomi · INT</small></div></div><button class="who" id="who" aria-label="Il tuo profilo">'+esc(S.me.name)+'</button></header>'+
-    '<main data-tab="'+esc(S.tab)+'">'+(S.offline?'<div class="offline">Senza connessione: vedi gli ultimi dati salvati'+(S.loadedAt?' ('+esc(fmtTime(S.loadedAt))+')':'')+'.</div>':'')+body+'</main>'+nav+'</div>';
+    '<main data-view="'+esc(S.tab)+'">'+(S.offline?'<div class="offline">Senza connessione: vedi gli ultimi dati salvati'+(S.loadedAt?' ('+esc(fmtTime(S.loadedAt))+')':'')+'.</div>':'')+body+'</main>'+nav+'</div>';
   $('who').onclick = profileSheet;
   var gc = $('goConsole'); if(gc) gc.onclick = function(){ location.href = 'admin.html'; };
-  document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv'||S.tab==='plan') refresh(true); }; });
+  document.querySelectorAll('button[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab=b.dataset.tab; render(); window.scrollTo(0,0); if(S.tab==='req'||S.tab==='perm'||S.tab==='sala'||S.tab==='solv'||S.tab==='plan') refresh(true); }; });
   if(locked) bindLock(); else if(S.tab==='cal') bindCal(); else if(S.tab==='perm') bindPerm(); else if(S.tab==='req') bindReq(); else if(S.tab==='sala') bindOr(); else if(S.tab==='plan') bindPlan(); else if(S.tab==='solv') bindSolv(); else if(S.tab==='set') bindSet(); else bindAdm();
   var np = document.querySelector('.nav-pill'); if(np) document.documentElement.style.setProperty('--navH', (np.offsetHeight + 10)+'px');
   if(keepScroll) window.scrollTo(0, keepScroll);
@@ -432,7 +435,7 @@ function linesFor(w, key, dayIdx){
     var k = KINDS[a.kind]; if(!k) return;
     var txt = k.t + (a.hours?' '+a.hours:'');
     if(out.some(function(l){ return String(l[0]).toLowerCase()===txt.toLowerCase(); })) return;
-    out.push([txt, k.bg]);
+    out.push([txt, planAutoColor(txt) || k.bg]);   // stesso colore della libreria (prima parola), altrimenti il colore del tipo
   });
   return out;
 }
@@ -697,54 +700,12 @@ function permCheckHtml(){
     '<div class="note">'+(isTit()?'Sei il titolare: la richiesta viene registrata subito nel calendario.':'Con "Conferma e invia" la richiesta arriva al responsabile, che riceve la notifica sul telefono. Nessun altro la vede finché non la accetta.')+'</div>';
   return h;
 }
-/* selettore di giorno proprio dell'app (non dipende dal calendario nativo del telefono/browser) */
-var DP_DOW = ['L','M','M','G','V','S','D'], DP_MESE = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
-function dpFull(v){ return dayLabel(v)+' '+pYmd(v).getFullYear(); }
-function dateField(id, label, v){
-  return '<div class="field"><span class="lbl" id="'+id+'L">'+label+'</span><button type="button" class="dpick'+(v?'':' empty')+'" id="'+id+'" aria-labelledby="'+id+'L '+id+'">'+ICON.cal+'<span>'+(v ? esc(dpFull(v)) : 'Tocca per scegliere il giorno')+'</span></button></div>';
+/* campi giorno / ora: selettori nativi del telefono o del browser */
+function dateField(id, label, v, min){
+  return '<div class="field"><label for="'+id+'">'+label+'</label><input type="date" id="'+id+'" min="'+esc(min||fYmd(new Date()))+'" value="'+esc(v||'')+'"></div>';
 }
-var CLOCK_SVG = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
 function timeField(id, label, v){
-  return '<div class="field"><span class="lbl" id="'+id+'L">'+label+'</span><button type="button" class="dpick'+(v?'':' empty')+'" id="'+id+'" aria-labelledby="'+id+'L '+id+'">'+CLOCK_SVG+'<span>'+(v ? esc(v) : 'Scegli l\'ora')+'</span></button></div>';
-}
-function timePick(title, cur, def, onPick){
-  var t = /^\d{1,2}:\d{2}/.test(cur||'') ? cur : (/^\d{1,2}:\d{2}/.test(def||'') ? def : '08:00'), H = parseInt(t.split(':')[0],10), Mi = Math.round(parseInt(t.split(':')[1],10)/5)*5;
-  if(Mi>55) Mi = 55;
-  var s = sheet('<h3>'+esc(title)+'</h3><div class="tbig" id="tvB"></div><div class="lbl">Ora</div><div class="dpg tpg" id="tvH"></div><div class="lbl">Minuti</div><div class="dpg tpg" id="tvM"></div><div class="dpf"><button type="button" class="btn alt" id="tvX">Annulla</button><button type="button" class="btn" id="tvOk">Imposta</button></div>');
-  function z(n){ return (n<10?'0':'')+n; }
-  function draw(){
-    var h = '', i;
-    for(i=0;i<24;i++) h += '<button type="button" data-th="'+i+'" class="'+(i===H?'sel':'')+'" aria-label="ore '+i+'">'+z(i)+'</button>';
-    $('tvH').innerHTML = h; h = '';
-    for(i=0;i<60;i+=5) h += '<button type="button" data-tm="'+i+'" class="'+(i===Mi?'sel':'')+'" aria-label="minuti '+i+'">'+z(i)+'</button>';
-    $('tvM').innerHTML = h;
-    $('tvB').textContent = z(H)+':'+z(Mi);
-    $('tvOk').textContent = 'Imposta '+z(H)+':'+z(Mi);
-    [].forEach.call($('tvH').querySelectorAll('[data-th]'), function(x){ x.onclick = function(){ H = parseInt(x.dataset.th,10); draw(); }; });
-    [].forEach.call($('tvM').querySelectorAll('[data-tm]'), function(x){ x.onclick = function(){ Mi = parseInt(x.dataset.tm,10); draw(); }; });
-  }
-  $('tvX').onclick = s.close;
-  $('tvOk').onclick = function(){ var v = z(H)+':'+z(Mi); s.close(); onPick(v); };
-  draw();
-}
-function datePick(cur, min, onPick){
-  var base = pYmd(cur || min || fYmd(new Date())), Y = base.getFullYear(), M = base.getMonth(), today = fYmd(new Date());
-  var minM = pYmd(min).getFullYear()*12 + pYmd(min).getMonth();
-  var s = sheet('<div class="dpn"><button type="button" class="btn alt sm" id="dpPrev" aria-label="Mese precedente">‹</button><h3 id="dpT"></h3><button type="button" class="btn alt sm" id="dpNext" aria-label="Mese successivo">›</button></div><div class="dpg" id="dpG"></div><div class="dpf"><button type="button" class="btn alt" id="dpX">Chiudi</button></div>');
-  function draw(){
-    var first = new Date(Y, M, 1), lead = (first.getDay()+6)%7, n = new Date(Y, M+1, 0).getDate(), h = '', i;
-    $('dpT').textContent = DP_MESE[M]+' '+Y;
-    for(i=0;i<7;i++) h += '<span class="dh">'+DP_DOW[i]+'</span>';
-    for(i=0;i<lead;i++) h += '<span></span>';
-    for(i=1;i<=n;i++){ var ds = fYmd(new Date(Y, M, i)); h += '<button type="button" data-dp="'+ds+'"'+(ds<min?' disabled':'')+' class="'+(ds===cur?'sel ':'')+(ds===today?'today':'')+'" aria-label="'+esc(dpFull(ds))+'">'+i+'</button>'; }
-    $('dpG').innerHTML = h;
-    $('dpPrev').disabled = (Y*12+M) <= minM;
-    [].forEach.call($('dpG').querySelectorAll('[data-dp]'), function(x){ x.onclick = function(){ var v = x.dataset.dp; s.close(); onPick(v); }; });
-  }
-  $('dpPrev').onclick = function(){ M--; if(M<0){ M = 11; Y--; } draw(); };
-  $('dpNext').onclick = function(){ M++; if(M>11){ M = 0; Y++; } draw(); };
-  $('dpX').onclick = s.close;
-  draw();
+  return '<div class="field"><label for="'+id+'">'+label+'</label><input type="time" id="'+id+'" value="'+esc(v||'')+'"></div>';
 }
 function permHtml(){
   var P = S.perm, h = '<div class="p2">', PK = permKinds();
@@ -774,7 +735,7 @@ function permHtml(){
       '<div class="field"><span class="lbl">Durata</span><div class="seg"><div class="grp"><button type="button" id="pwWhole" aria-pressed="'+P.whole+'">Giornata intera</button><button type="button" id="pwHrs" aria-pressed="'+(!P.whole)+'">Orario</button></div></div></div>';
     if(!P.whole) h += '<div class="field"><div class="hours">'+timeField('pH1','Dalle',P.h1)+timeField('pH2','Alle',P.h2)+'</div></div>';
   } else {
-    h += '<div class="hours">'+dateField('pD','Dal giorno',P.d)+dateField('pD2','Al giorno',P.d2)+'</div>'+
+    h += '<div class="hours">'+dateField('pD','Dal giorno',P.d)+dateField('pD2','Al giorno',P.d2,P.d||fYmd(new Date()))+'</div>'+
       '<div class="note">Giornate intere'+(KINDS[P.k] && KINDS[P.k].nowe ? ', sabato e domenica esclusi (per quei giorni usa "Un giorno").' : ', sabato e domenica compresi.')+'</div>';
   }
   h += '<div class="sum" id="pSum">'+esc(permSummary(P))+'</div><div class="err" id="pErr">'+esc(P.err)+'</div></div></div>';
@@ -822,8 +783,8 @@ function bindPerm(){
   function paint(ds){ P.wk[ds] = {k:B.k, whole:B.whole, h1:B.whole?'':B.h1, h2:B.whole?'':B.h2}; }
   document.querySelectorAll('[data-bk]').forEach(function(x){ x.onclick = function(){ B.k = x.dataset.bk; if(!KINDS[B.k].hr) B.whole = true; P.err=''; render(); }; });
   document.querySelectorAll('[data-bw]').forEach(function(x){ x.onclick = function(){ B.whole = x.dataset.bw==='w'; P.err=''; render(); }; });
-  if((b=$('bH1'))) b.onclick = function(){ timePick('Dalle', B.h1, '08:00', function(v){ B.h1 = v; P.err=''; render(); }); };
-  if((b=$('bH2'))) b.onclick = function(){ timePick('Alle', B.h2, B.h1 || '13:00', function(v){ B.h2 = v; P.err=''; render(); }); };
+  if((b=$('bH1'))) b.onchange = function(){ B.h1 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
+  if((b=$('bH2'))) b.onchange = function(){ B.h2 = this.value; P.err=''; if($('pErr')) $('pErr').textContent=''; };
   document.querySelectorAll('[data-wkd]').forEach(function(x){ x.onclick = function(){
     var ds = x.dataset.wkd, e = P.wk[ds];
     if(e && e.k===B.k && e.whole===B.whole && (e.whole || (e.h1===B.h1 && e.h2===B.h2))){ delete P.wk[ds]; P.err=''; render(); return; }
@@ -840,10 +801,10 @@ function bindPerm(){
   }; });
   if((b=$('pwWhole'))) b.onclick = function(){ P.whole=true; P.err=''; render(); };
   if((b=$('pwHrs'))) b.onclick = function(){ P.whole=false; P.err=''; render(); };
-  if((b=$('pD'))) b.onclick = function(){ datePick(P.d, fYmd(new Date()), function(v){ P.d = v; if(P.d2 && P.d2<v) P.d2 = ''; P.err = ''; render(); }); };
-  if((b=$('pD2'))) b.onclick = function(){ datePick(P.d2 || P.d, P.d || fYmd(new Date()), function(v){ P.d2 = v; P.err = ''; render(); }); };
-  if((b=$('pH1'))) b.onclick = function(){ timePick('Dalle', P.h1, '08:00', function(v){ P.h1 = v; P.err=''; render(); }); };
-  if((b=$('pH2'))) b.onclick = function(){ timePick('Alle', P.h2, P.h1 || '13:00', function(v){ P.h2 = v; P.err=''; render(); }); };
+  if((b=$('pD'))) b.onchange = function(){ P.d=this.value; if(P.mode==='period' && P.d2 && P.d2<P.d) P.d2=''; if(P.mode==='period') render(); else upd(); };
+  if((b=$('pD2'))) b.onchange = function(){ P.d2=this.value; upd(); };
+  if((b=$('pH1'))) b.onchange = function(){ P.h1=this.value; upd(); };
+  if((b=$('pH2'))) b.onchange = function(){ P.h2=this.value; upd(); };
   if((b=$('pNote'))) b.oninput = function(){ P.note = this.value; };
   if((b=$('pCheck'))) b.onclick = function(){
     var r = permDays(P);
@@ -1470,6 +1431,22 @@ function planLibrary(id){
   out.freq = f.ord.map(function(k){ return f.cnt[k]; }).sort(function(a,b){ return b.n-a.n; }).slice(0,30);
   return out;
 }
+/* colore automatico di un turno scritto a mano: stesso colore della libreria, deciso dalla prima parola ("Sala…", "Permesso…") */
+function planFirst(t){ return String(t||'').trim().toLowerCase().split(/[\s\-–—·.,;:\/()]+/).filter(Boolean)[0] || ''; }
+function planAutoColor(t){
+  var key = String(t||'').trim().toLowerCase(), fw = planFirst(t), cnt = {}, best = '', bn = 0, exact = '';
+  if(!fw) return '';
+  function seen(txt, c){
+    if(!/^#[0-9a-fA-F]{3,8}$/.test(c||'')) return;
+    if(String(txt).trim().toLowerCase()===key && !exact) exact = c;
+    if(planFirst(txt)!==fw) return;
+    var k = c.toLowerCase(); cnt[k] = (cnt[k]||0)+1; if(cnt[k]>bn){ bn = cnt[k]; best = c; }
+  }
+  if(S.lib && S.lib.length) S.lib.forEach(function(x){ if(x && x.t) seen(x.t, x.c); });
+  if(exact) return exact; if(best) return best;
+  var f = planFreq(); f.ord.forEach(function(k){ seen(f.cnt[k].t, f.cnt[k].c); });
+  return exact || best;
+}
 function planColors(id){
   var seen = {}, out = [], L = planLibrary(id);
   L.freq.concat(L.rest).forEach(function(x){ if(/^#[0-9a-fA-F]{3,8}$/.test(x.c) && !seen[x.c.toLowerCase()]){ seen[x.c.toLowerCase()] = 1; out.push(x.c); } });
@@ -1548,32 +1525,56 @@ function progHtml(){
 function cellSheet(id, di){
   var P = S.plan, key = id+'|'+di, d, dayName;
   function cur(){ var w = planWeek(); return (((w.days||{})[id]||[])[di]) || []; }
-  var s = sheet('', function(){ render(); });
+  var s = sheet('', function(){ P.col = ''; render(); }), edIdx = -1, keep = null;
+  P.col = '';   // il colore scelto a mano vale solo per il turno che stai scrivendo, non resta "attaccato" ai successivi
   function draw(){
+    // la finestra viene ridisegnata a ogni modifica: ricordo posizione di scorrimento, ricerca e testo in corso, così non "saltano"
+    var o = s.el, qa = o.querySelector('#libAll'), qq = o.querySelector('#libQ'), te = o.querySelector('#edTxt'),
+        keepSt = o.scrollTop, keepLa = qa ? qa.scrollTop : 0, keepQ = qq ? qq.value : '', keepT = te ? te.value : '',
+        keepF = (document.activeElement && o.contains(document.activeElement)) ? document.activeElement.id : '';
     var w = planWeek(), baseLines = cur(), all = linesFor(w, id, di), lock = all.filter(function(l){ return !baseLines.some(function(b){ return String(b[0])===String(l[0]); }); });
     var used = {}; baseLines.forEach(function(l){ used[String(l[0]).toLowerCase()] = 1; });
     var dsx = fYmd(addD(pYmd(w.mon),di)), sug = planSugg(id, dsx), pend = planPending(id, dsx);
     var colors = planColors(id), L = planLibrary(id);
     function libBtns(list){ return list.filter(function(x){ return !used[x.t.toLowerCase()]; }).map(function(x){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(x.c) ? x.c : '#eef1f6'; return '<button type="button" class="pill" style="background:'+bg+'" data-lib="'+esc(x.t)+'" data-libc="'+esc(x.c)+'">+ '+esc(x.t)+'</button>'; }).join(''); }
-    s.el.innerHTML = '<h3>'+esc(S.people[id].n)+' · '+esc(dayLabel(fYmd(addD(pYmd(w.mon),di))))+'</h3>'+
-      '<div class="lbl">Turni di questo giorno</div><div class="pills edpills">'+
-      (baseLines.length ? baseLines.map(function(l,k){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : '#eef1f6'; return '<span class="pill rm" style="background:'+bg+'">'+esc(l[0])+'<button type="button" data-rm="'+k+'" aria-label="Togli '+esc(l[0])+'">✕</button></span>'; }).join('') : '<span class="free">Nessun turno</span>')+
-      lock.map(function(l){ return '<span class="pill lock" style="background:'+(/^#[0-9a-fA-F]{3,8}$/.test(l[1]||'')?l[1]:'#eef1f6')+'" title="Da una richiesta accettata">'+esc(l[0])+' <small>richiesta</small></span>'; }).join('')+'</div>'+
+    s.el.innerHTML = '<div class="edhead"><h3>'+esc(S.people[id].n)+' · '+esc(dayLabel(fYmd(addD(pYmd(w.mon),di))))+'</h3>'+
+      '<div class="lbl">Turni di questo giorno <span class="edhint">(tocca un turno per cambiarlo)</span></div><div class="pills edpills">'+
+      (baseLines.length ? baseLines.map(function(l,k){ var bg = /^#[0-9a-fA-F]{3,8}$/.test(l[1]||'') ? l[1] : (planAutoColor(l[0]) || '#eef1f6'); return '<span class="pill rm'+(edIdx===k?' sel':'')+'" style="background:'+bg+'"><button type="button" class="ptxt" data-ed="'+k+'" aria-label="Cambia '+esc(l[0])+'">'+esc(l[0])+'</button><button type="button" data-rm="'+k+'" aria-label="Togli '+esc(l[0])+'">✕</button></span>'; }).join('') : '<span class="free">Nessun turno</span>')+
+      lock.map(function(l){ return '<span class="pill lock" style="background:'+(/^#[0-9a-fA-F]{3,8}$/.test(l[1]||'')?l[1]:'#eef1f6')+'" title="Da una richiesta accettata">'+esc(l[0])+' <small>richiesta</small></span>'; }).join('')+'</div></div>'+
       (sug.length?'<div class="lbl">Suggerito dal Master SalaOp (solo promemoria: non va nel calendario né nella stampa)</div><div class="pills">'+sug.map(function(t){ return '<span class="pill sugg">'+esc(t)+'</span>'; }).join('')+'</div>':'')+
       (pend.length?'<div class="lbl">Richieste in attesa di decisione</div><div class="pills">'+pend.map(function(t){ return '<span class="pill pend">'+esc(t)+'</span>'; }).join('')+'</div>':'')+
       (L.lib
         ? '<div class="lbl">Turni più usati</div><div class="lib freq">'+(libBtns(L.freq)||'<span class="empty">Nessun turno usato finora.</span>')+'</div>'+
           '<div class="lbl">Libreria turni</div><input id="libQ" type="search" class="libq" placeholder="Cerca nella libreria…" autocomplete="off"><div class="lib all" id="libAll">'+(libBtns(L.rest)||'<span class="empty">Tutti i turni sono già nei più usati.</span>')+'</div>'
         : '<div class="lbl">Aggiungi un turno usato di recente</div><div class="lib">'+libBtns(L.freq)+'</div><div class="note">La libreria della console arriva con la prossima pubblicazione dei turni.</div>')+
-      '<div class="lbl">Oppure scrivi un testo libero</div><div class="row"><input id="edTxt" type="text" maxlength="60" placeholder="Es. Sala 2, Ambulatorio…" autocomplete="off"><button type="button" class="btn sm" id="edAdd">Aggiungi</button></div>'+
-      (colors.length?'<div class="swatches" id="edCols" aria-label="Colore">'+colors.map(function(c,k){ return '<button type="button" data-col="'+c+'" style="background:'+c+'" aria-pressed="'+(P.col===c)+'" aria-label="Colore '+(k+1)+'"></button>'; }).join('')+'<button type="button" data-col="" class="none" aria-pressed="'+(!P.col)+'">nessuno</button></div>':'')+
-      '<button type="button" class="btn alt" id="edClose">Fatto</button>';
+      '<div class="lbl">'+(edIdx>=0 ? 'Cambia il testo del turno' : 'Oppure scrivi un testo libero')+'</div><div class="row"><span class="edot" id="edDot" aria-hidden="true"></span><input id="edTxt" type="text" maxlength="60" placeholder="Es. Sala 2, Ambulatorio…" autocomplete="off" enterkeyhint="done"><button type="button" class="btn sm" id="edAdd">'+(edIdx>=0 ? 'Salva' : 'Aggiungi')+'</button>'+(edIdx>=0 ? '<button type="button" class="btn alt sm" id="edCancel">Annulla</button>' : '')+'</div>'+
+      (colors.length?'<div class="swatches" id="edCols" aria-label="Colore">'+colors.map(function(c,k){ return '<button type="button" data-col="'+c+'" style="background:'+c+'" aria-pressed="'+(P.col===c)+'" aria-label="Colore '+(k+1)+'"></button>'; }).join('')+'<button type="button" data-col="" class="none" aria-pressed="'+(!P.col)+'">automatico</button></div><div class="note">Se non scegli un colore, il turno prende quello della libreria in base alla <b>prima parola</b> (es. «Sala…», «Permesso…»).</div>':'')+
+      '<div class="edfoot"><button type="button" class="btn alt" id="edClose">Fatto</button></div>';
     var q = s.el.querySelector('#libQ'); if(q) q.oninput = function(){ var v = q.value.trim().toLowerCase(); s.el.querySelectorAll('#libAll [data-lib]').forEach(function(b){ b.hidden = !!v && b.dataset.lib.toLowerCase().indexOf(v)<0; }); };
-    s.el.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ edit(function(arr){ arr.splice(+b.dataset.rm,1); }); }; });
-    s.el.querySelectorAll('[data-lib]').forEach(function(b){ b.onclick = function(){ edit(function(arr){ arr.push([b.dataset.lib, b.dataset.libc||null]); }); }; });
+    s.el.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){ var k = +b.dataset.rm; if(edIdx===k) edIdx = -1; else if(edIdx>k) edIdx--; keep = ''; edit(function(arr){ arr.splice(k,1); }); }; });
+    s.el.querySelectorAll('[data-ed]').forEach(function(b){ b.onclick = function(){ var k = +b.dataset.ed, l = cur()[k]; if(!l) return; edIdx = (edIdx===k ? -1 : k); keep = edIdx>=0 ? String(l[0]) : ''; draw(); if(edIdx>=0){ var t = $('edTxt'); if(t){ t.focus(); try{ t.setSelectionRange(t.value.length, t.value.length); }catch(e){} } } }; });
+    s.el.querySelectorAll('[data-lib]').forEach(function(b){ b.onclick = function(){ edit(function(arr){ if(!arr.some(function(l){ return String(l[0]).toLowerCase()===b.dataset.lib.toLowerCase(); })) arr.push([b.dataset.lib, b.dataset.libc||null]); }); }; });
     s.el.querySelectorAll('[data-col]').forEach(function(b){ b.onclick = function(){ P.col = b.dataset.col; draw(); }; });
-    var add = function(){ var t = ($('edTxt').value||'').trim().slice(0,60); if(!t) return; edit(function(arr){ if(!arr.some(function(l){ return String(l[0]).toLowerCase()===t.toLowerCase(); })) arr.push([t, P.col||null]); }); };
+    var dot = function(){ var d = $('edDot'), t = $('edTxt'); if(!d||!t) return; var c = P.col || planAutoColor(t.value) || ''; d.style.background = c || 'transparent'; };
+    var add = function(){
+      var t = ($('edTxt').value||'').trim().slice(0,60); if(!t) return;
+      var k = edIdx, dup = cur().some(function(l,j){ return j!==k && String(l[0]).toLowerCase()===t.toLowerCase(); });
+      if(dup){ toast('Questo turno c\'è già'); return; }
+      var col = P.col; P.col = ''; edIdx = -1; keep = '';
+      edit(function(arr){
+        if(k>=0 && arr[k]) arr[k] = [t, col || planAutoColor(t) || arr[k][1] || null];
+        else arr.push([t, col || planAutoColor(t) || null]);
+      });
+      var te2 = $('edTxt'); if(te2) te2.focus();
+    };
     $('edAdd').onclick = add; $('edTxt').onkeydown = function(e){ if(e.key==='Enter'){ e.preventDefault(); add(); } };
+    $('edTxt').oninput = dot;
+    var cn = $('edCancel'); if(cn) cn.onclick = function(){ edIdx = -1; keep = ''; draw(); };
+    // ripristino quello che stavi facendo
+    var nt = $('edTxt'); nt.value = (keep!==null ? keep : keepT); keep = null; dot();
+    if(keepQ && $('libQ')){ $('libQ').value = keepQ; $('libQ').oninput(); }
+    s.el.scrollTop = keepSt; if($('libAll')) $('libAll').scrollTop = keepLa;
+    if(keepF==='libQ' && $('libQ')) $('libQ').focus();
     $('edClose').onclick = function(){ s.close(); };
   }
   function edit(fn){
@@ -1700,7 +1701,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = 'v2.30';
+var APP_VERSION = 'v2.33';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }

@@ -500,10 +500,10 @@ input,select,textarea{font-size:17px;}
 .desk .nav-pill button svg{width:20px; height:20px;}
 .desk main{padding:84px 28px 40px; gap:18px;}
 .desk main > *{width:100%; max-width:900px; margin-left:auto; margin-right:auto;}
-.desk main[data-tab="cal"] > *{max-width:900px; margin-left:0; margin-right:0;}
-.desk main[data-tab="cal"] > .scroll,.desk main[data-tab="cal"] > .seg{max-width:none;}
-.desk main[data-tab="cal"] > .wknav{max-width:520px;}
-.desk main[data-tab="plan"] > *,.desk main[data-tab="req"] > *{max-width:1100px;}
+.desk main[data-view="cal"] > *{max-width:900px; margin-left:0; margin-right:0;}
+.desk main[data-view="cal"] > .scroll,.desk main[data-view="cal"] > .seg{max-width:none;}
+.desk main[data-view="cal"] > .wknav{max-width:520px;}
+.desk main[data-view="plan"] > *,.desk main[data-view="req"] > *{max-width:1100px;}
 .desk .wknav{margin-left:0; margin-right:auto;}
 .desk .tbl th,.desk .tbl td{min-width:150px; padding:9px 10px; font-size:14.5px;}
 .desk .tbl th{font-size:14px;}
@@ -530,21 +530,14 @@ input,select,textarea{font-size:17px;}
 .rfilt label.rfwk{flex:2 1 280px}
 .req .row{flex-wrap:wrap}
 
-/* selettore di giorno dell'app */
-.dpick{width:100%; display:flex; align-items:center; gap:10px; text-align:left; font:inherit; font-size:17px; font-weight:600; min-height:50px; padding:11px 13px; border:1.5px solid var(--line); border-radius:12px; background:var(--field,var(--card)); color:var(--ink); cursor:pointer}
-.dpick svg{width:22px; height:22px; flex:none; color:var(--accent); fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round}
-.dpick.empty{color:var(--soft); font-weight:500}
-.dpn{display:flex; align-items:center; justify-content:space-between; gap:10px}
-.dpn h3{margin:0; text-transform:capitalize}
-.dpg{display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin:12px 0}
-.dpg .dh{font-size:12px; font-weight:800; color:var(--soft); text-align:center; padding:4px 0}
-.dpg button{aspect-ratio:1; min-height:40px; border:0; border-radius:11px; background:var(--chip); color:var(--ink); font:inherit; font-size:16px; font-weight:700; cursor:pointer}
-.dpg button[disabled]{opacity:.28; cursor:default}
-.dpg button.today{outline:2px solid var(--accent); outline-offset:-2px}
-.dpg button.sel{background:var(--accent); color:#fff}
-.dpf{display:flex; gap:10px}
-.dpf .btn{flex:1}
-.tpg{grid-template-columns:repeat(6,1fr); margin:6px 0 10px}
-.tpg button{min-height:38px; font-size:15px}
-.tbig{font-size:34px; font-weight:800; text-align:center; letter-spacing:1px; color:var(--accent)}
-.sheet .lbl{font-size:12.5px; font-weight:800; color:var(--soft)}
+/* Programmazione: finestra di modifica di una cella */
+.edhead{position:sticky; top:-16px; z-index:3; background:var(--card); margin:-16px -16px 0; padding:16px 16px 10px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:8px; border-radius:22px 22px 0 0;}
+.edhead h3{margin:0;}
+.edhint{font-weight:500; text-transform:none; letter-spacing:0; color:var(--soft);}
+.pill.rm{padding-left:4px;}
+.pill.rm .ptxt{width:auto; height:auto; border-radius:12px; background:transparent; padding:3px 6px; font:inherit; font-weight:inherit; color:inherit; line-height:1.2; text-align:left;}
+.pill.rm.sel{box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--accent);}
+.edot{flex:none; width:18px; height:18px; border-radius:50%; border:1.5px solid var(--line); align-self:center;}
+.edfoot{position:sticky; bottom:calc(-18px - env(safe-area-inset-bottom,0px)); z-index:3; background:var(--card); margin:0 -16px calc(-18px - env(safe-area-inset-bottom,0px)); padding:10px 16px calc(18px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line); display:flex; flex-direction:column;}
+.edfoot .btn{width:100%;}
+.sheet > *{flex-shrink:0;}   /* le finestre molto lunghe scorrono: i blocchi interni non si schiacciano */

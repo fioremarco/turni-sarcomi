@@ -140,10 +140,22 @@ function colorFor(text){
   for(const c of COLOR_RULES){ if(c.match.some(k=>t.includes(k))) return c; }
   return {bg:'#eef1f6', fg:'#000000'};
 }
+// Prima parola del turno ("Sala", "Permesso", "Giro"…): decide il colore, coerente con la Libreria turni.
+function firstWord(text){ return String(text||'').trim().toLowerCase().split(/[\s\-–—·.,;:\/()]+/).filter(Boolean)[0] || ''; }
+function libFirstWordColor(text){
+  const fw = firstWord(text); if(!fw) return null;
+  const cnt = {}; let best = null, bn = 0;
+  turnoLibrary.forEach(l=>{
+    if(firstWord(l.text)!==fw || !l.bg) return;
+    const k = String(l.bg).toLowerCase(); cnt[k] = (cnt[k]||0)+1;      // se la libreria ha più colori per la stessa parola vince il più usato
+    if(cnt[k]>bn){ bn = cnt[k]; best = {bg:l.bg, fg:l.fg}; }
+  });
+  return best;
+}
 function colorForPill(text){
   const hit = turnoLibrary.find(l=> l.text.trim().toLowerCase() === text.trim().toLowerCase());
-  if(hit) return {bg:hit.bg, fg:hit.fg};
-  return colorFor(text);
+  if(hit) return {bg:hit.bg, fg:hit.fg};                // 1) nome identico a un turno della libreria
+  return libFirstWordColor(text) || colorFor(text);     // 2) stessa prima parola di un turno della libreria; 3) regole per parola chiave
 }
 // --- Modello riga turno: ogni riga in entries[staffId][day] è un oggetto {t:testo, c:coloreForzato|null}.
 // c=null significa "colore automatico" (segue la libreria/le regole keyword e si aggiorna da solo).
@@ -767,10 +779,7 @@ function openCellEdit(cell){
       const prev = oldLines[mi];
       const prevOverride = lineColorOverride(prev);
       if(prevOverride) return makeLine(text, prevOverride); // colore scelto manualmente: si mantiene sempre
-      const prevText = lineText(prev);
-      if(prevText===text) return makeLine(text, null); // testo invariato (solo riordinato): resta automatico
-      const shown = colorForPill(prevText);
-      return makeLine(text, shown.bg); // testo modificato: congela il colore già mostrato prima
+      return makeLine(text, null); // colore automatico: segue la prima parola del turno (come nella libreria), anche se il testo viene modificato
     });
     cell.classList.remove('editing');
     renderCellContent(cell, staffId, day);
@@ -942,6 +951,14 @@ async function exportBackupExcel(){
   if(await saveBlobLike(`Backup_Turni_CDS_${isoDate(new Date())}.xlsx`, xout)) showStatusMsg('Backup salvato');
 }
 
+document.getElementById('btnAlignColors').addEventListener('click', async ()=>{
+  let n = 0;
+  Object.keys(entries).forEach(id=> (entries[id]||[]).forEach(dl=> (dl||[]).forEach(l=>{ if(lineColorOverride(l)) n++; })));
+  if(!n){ showStatusMsg('Nessun colore da riallineare: sono già tutti automatici.'); return; }
+  if(!await askConfirm(`In questa settimana ${n} ${n===1?'etichetta ha':'etichette hanno'} un colore fissato a mano o ereditato da una modifica. Le riporto al colore della libreria (deciso dalla prima parola del turno)? I colori scelti a mano in questa settimana andranno persi.`, 'Riallinea')) return;
+  Object.keys(entries).forEach(id=> entries[id] = (entries[id]||[]).map(dl=> (dl||[]).map(l=> { const o = (l && typeof l==='object') ? Object.assign({}, l) : {t:String(l)}; o.c = null; return o; })));
+  saveWeek(); renderGrid(); showStatusMsg(`Colori riallineati alla libreria (${n}).`);
+});
 document.getElementById('btnApplyRules').addEventListener('click', ()=>{
   const changed = applyRulesToEntries(false);
   renderGrid();
