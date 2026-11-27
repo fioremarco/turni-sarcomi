@@ -1992,6 +1992,7 @@ function openRequestsModal(){
     <h2>Richieste di permesso e ferie</h2>
     <p class="hint">Quando approvi una richiesta, le voci (Ferie, Permesso, Lezione, Congresso, Presenza, Smart working) compaiono in automatico nei turni della persona, giorno per giorno, e i contatori degli specializzandi si aggiornano. Se la neghi o la rimetti in sospeso, le voci vengono tolte. Le settimane già pubblicate non cambiano finché non le ripubblichi.</p>
     <div class="reqtabs" id="reqTabs"></div>
+    <div id="reqFilt" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:10px 0 2px"></div><div class="hint" id="reqCount" style="margin:4px 0 8px"></div>
     <details id="reqImport" style="margin:10px 0"><summary><b>Importa richieste ricevute</b> (messaggi WhatsApp)</summary>
       <p class="hint" style="margin:8px 0">Incolla qui uno o più messaggi del personale: ogni messaggio contiene una riga che inizia con <code>#RQ2</code>. Le richieste già importate vengono ignorate.</p>
       <textarea id="reqPaste" rows="4" style="width:100%;font:12px monospace;padding:8px;border:1px solid var(--line);border-radius:8px"></textarea>
@@ -2015,17 +2016,52 @@ function openRequestsModal(){
   const q = id=> ov.querySelector('#'+id);
   q('closeReq').onclick = ()=> ov.remove();
   ov.addEventListener('click', e=>{ if(e.target===ov) ov.remove(); });
-  let filt = 'pending';
+  let filt = 'pending', fWho = '', fWk = 'all', fWkTouched = false;
+  const ymdL = d=> d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const monOfL = y=>{ const d = parseYmd(y); return ymdL(addDays(d, -dayIndexOf(d))); };
+  const nextMonL = ()=>{ const t = new Date(); t.setHours(0,0,0,0); return ymdL(addDays(parseYmd(monOfL(ymdL(t))), 7)); };
+  const MES = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+  const wkTxt = m=>{ const a = parseYmd(m), b = addDays(a,6); return a.getDate()+(a.getMonth()!==b.getMonth()?' '+MES[a.getMonth()]:'')+' – '+b.getDate()+' '+MES[b.getMonth()]+' '+b.getFullYear(); };
+  const curWk = ()=> fWkTouched ? fWk : (filt==='pending' ? 'all' : nextMonL());
+  const reqOk = (r, wk)=>{
+    if(fWho && r.staffId!==fWho) return false;
+    if(wk!=='all'){ const e = ymdL(addDays(parseYmd(wk),6)); if(!reqItems(r).some(i=> i.d>=wk && i.d<=e)) return false; }
+    return true;
+  };
+  function renderFilt(){
+    const wk = curWk(), tabList = requests.filter(r=> filt==='all' || r.status===filt);
+    const cur = monOfL(ymdL(new Date())), nxt = nextMonL();
+    let lo = cur, hi = nxt;
+    tabList.forEach(r=> reqItems(r).forEach(i=>{ const m = monOfL(i.d); if(m<lo) lo = m; if(m>hi) hi = m; }));
+    if(wk!=='all'){ if(wk<lo) lo = wk; if(wk>hi) hi = wk; }
+    const weeks = []; for(let d = parseYmd(lo), e = parseYmd(hi); d<=e; d = addDays(d,7)) weeks.push(ymdL(d));
+    const st = 'font:inherit;font-weight:600;padding:7px 9px;border:1px solid var(--line);border-radius:8px;min-width:0';
+    const people = staff.slice().sort((a,b)=> a.name.localeCompare(b.name,'it'));
+    q('reqFilt').innerHTML =
+      `<label class="hint" style="display:flex;flex-direction:column;gap:3px;flex:1 1 170px">Persona<select id="rfWho" style="${st}"><option value="">Tutte le persone</option>${people.map(s=>`<option value="${escapeAttr(s.id)}"${fWho===s.id?' selected':''}>${escapeHtml(s.name)}${s.removed?' (rimosso)':''}</option>`).join('')}</select></label>`+
+      `<label class="hint" style="display:flex;flex-direction:column;gap:3px;flex:2 1 260px">Settimana (sui giorni richiesti)<span style="display:flex;gap:6px"><button class="btn-small" id="rfPrev" aria-label="Settimana precedente">‹</button><select id="rfWk" style="${st};flex:1"><option value="all"${wk==='all'?' selected':''}>Tutte le settimane</option>${weeks.map(m=>`<option value="${m}"${wk===m?' selected':''}>${wkTxt(m)}${m===cur?' · questa':m===nxt?' · prossima':''}</option>`).join('')}</select><button class="btn-small" id="rfNext" aria-label="Settimana successiva">›</button></span></label>`;
+    q('rfWho').onchange = ()=>{ fWho = q('rfWho').value; renderFilt(); renderList(); };
+    q('rfWk').onchange = ()=>{ fWkTouched = true; fWk = q('rfWk').value; renderFilt(); renderList(); };
+    const step = dir=>{
+      const vals = weeks, c = curWk(), i = vals.indexOf(c); fWkTouched = true;
+      if(i<0) fWk = nxt; else if(vals[i+dir]) fWk = vals[i+dir]; else fWk = ymdL(addDays(parseYmd(c), 7*dir));
+      renderFilt(); renderList();
+    };
+    q('rfPrev').onclick = ()=> step(-1); q('rfNext').onclick = ()=> step(1);
+  }
   q('nrStaff').innerHTML = staff.filter(s=>!s.removed).map(s=>`<option value="${escapeAttr(s.id)}">${escapeHtml(s.name)}</option>`).join('');
   function renderTabs(){
     const cnt = k=> k==='all' ? requests.length : requests.filter(r=>r.status===k).length;
     q('reqTabs').innerHTML = [['pending','In sospeso'],['approved','Approvate'],['denied','Negate'],['all','Tutte']].map(([k,l])=>
       `<button class="btn-small" data-f="${k}" style="${filt===k?'background:var(--accent);color:#fff':''}">${l} (${cnt(k)})</button>`).join(' ');
-    q('reqTabs').querySelectorAll('button').forEach(b=> b.onclick = ()=>{ filt = b.dataset.f; renderTabs(); renderList(); });
+    q('reqTabs').querySelectorAll('button').forEach(b=> b.onclick = ()=>{ filt = b.dataset.f; renderTabs(); renderFilt(); renderList(); });
   }
   function renderList(){
-    const list = requests.filter(r=> filt==='all' || r.status===filt).sort((a,b)=> (a.created<b.created?1:-1));
-    if(!list.length){ q('reqList').innerHTML = '<p class="hint" style="padding:14px 0">Nessuna richiesta in questa lista.</p>'; return; }
+    const wkSel = curWk(), filtered = (fWho || wkSel!=='all');
+    const list = requests.filter(r=> (filt==='all' || r.status===filt) && reqOk(r, wkSel)).sort((a,b)=> (a.created<b.created?1:-1));
+    q('reqCount').innerHTML = `${list.length} ${list.length===1?'richiesta':'richieste'}` + (filtered ? ' con questi filtri · <a href="#" id="rfReset" style="color:var(--accent);font-weight:700">Mostra tutto</a>' : '');
+    const rs = q('rfReset'); if(rs) rs.onclick = e=>{ e.preventDefault(); fWho = ''; fWk = 'all'; fWkTouched = true; renderFilt(); renderList(); };
+    if(!list.length){ q('reqList').innerHTML = `<p class="hint" style="padding:14px 0">${filtered ? 'Nessuna richiesta con questi filtri.' : 'Nessuna richiesta in questa lista.'}</p>`; return; }
     q('reqList').innerHTML = list.map(r=>{
       const items = reqItems(r), ov2 = overlapNames(r);
       const legacy = !Array.isArray(r.items);
@@ -2094,7 +2130,7 @@ function openRequestsModal(){
     }
     if(added) await saveRequests();
     q('reqImpMsg').textContent = `Importate ${added}` + (dup?`, già presenti ${dup}`:'') + (unk?`, persona non riconosciuta ${unk}`:'') + (bad?`, non valide ${bad}`:'') + (!added && !dup && !unk && !bad ? ' — nessun codice #RQ trovato' : '');
-    if(added){ q('reqPaste').value=''; filt='pending'; renderTabs(); renderList(); }
+    if(added){ q('reqPaste').value=''; filt='pending'; fWho=''; fWkTouched=false; renderTabs(); renderFilt(); renderList(); }
   }
   q('reqDoImport').onclick = ()=> importCodes(q('reqPaste').value);
   q('reqFile').onchange = async ()=>{
@@ -2125,11 +2161,11 @@ function openRequestsModal(){
     while(d<=end && items.length<62){ if(q('nrWeekend').checked || dayIndexOf(d)<5) items.push({d:ymdLocal(d), k, h}); d = addDays(d,1); }
     if(!items.length) return;
     requests.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), staffId:q('nrStaff').value, items, note:q('nrNote').value.trim(), status:'pending', adminNote:'', created:new Date().toISOString(), source:'manual'});
-    await saveRequests(); filt='pending'; renderTabs(); renderList();
+    await saveRequests(); filt='pending'; fWho=''; fWkTouched=false; renderTabs(); renderFilt(); renderList();
     q('nrFrom').value=''; q('nrTo').value=''; q('nrHours').value=''; q('nrNote').value='';
   };
   const hid = document.createElement('button'); hid.id = 'reqRefresh'; hid.hidden = true; hid.onclick = ()=>{ renderTabs(); renderList(); }; ov.appendChild(hid);
-  renderTabs(); renderList();
+  renderTabs(); renderFilt(); renderList();
 }
 
 // ---- istantanea per l'app del personale
@@ -2477,7 +2513,9 @@ function openStaffAppModal(){
   };
 
   // --- versioni dell'app
-  const vNum = v=> String(v||'').split('.').map(x=>parseInt(x,10)||0);
+  const vNum = v=>{ v = String(v||'').trim(); let m = /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/.exec(v);   // vecchia numerazione a data (2026.11.27) = v2.27
+    if(m) return [2, parseInt(m[3],10)];
+    m = /^v?(\d+)\.(\d+)/i.exec(v); return m ? [parseInt(m[1],10), parseInt(m[2],10)] : [0,0]; };
   const vCmp = (a,b)=>{ const x=vNum(a), y=vNum(b); for(let i=0;i<Math.max(x.length,y.length);i++){ const d=(x[i]||0)-(y[i]||0); if(d) return d<0?-1:1; } return 0; };
   async function loadVersions(){
     q('vrSum').textContent = 'Caricamento…'; q('vrTab').innerHTML = '';

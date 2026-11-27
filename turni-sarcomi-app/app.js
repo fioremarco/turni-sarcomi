@@ -67,7 +67,7 @@ var S = {
   or:{mon:null, day:0, rows:[], rooms:null, err:'', room:'', p1:'', p2:'', selKey:'', rev:0, busy:false},
   solv:{rows:[], end:false, shown:15, mode:'all', yr:0, yrData:{}, yrBusy:false, s2:'', s3:'', sk:'', day:'', err:'', busy:false, selKey:'', rev:0},
   perm:{who:'', k:'', mode:'day', d:'', d2:'', whole:true, h1:'', h2:'', wmon:'', wk:{}, brush:null, note:'', busy:false, err:'', step:'edit', all:false},
-  adm:{tab:'todo', busy:false},
+  adm:{tab:'todo', busy:false, who:'', wk:'', wkTouched:false, st:'all'},
   plan:{sec:'prog', idx:-1, mon:'', day:0, draft:{}, base:{}, cells:{}, col:'', busy:false, err:'', showLog:false, logAll:false, log:[], logLoaded:false, logBusy:false, logErr:''},
   push:{key:'', ready:false, on:false, busy:false, msg:''},
   rules:null, notif:{busy:false, msg:''}, go:''
@@ -697,6 +697,31 @@ function permCheckHtml(){
     '<div class="note">'+(isTit()?'Sei il titolare: la richiesta viene registrata subito nel calendario.':'Con "Conferma e invia" la richiesta arriva al responsabile, che riceve la notifica sul telefono. Nessun altro la vede finché non la accetta.')+'</div>';
   return h;
 }
+/* selettore di giorno proprio dell'app (non dipende dal calendario nativo del telefono/browser) */
+var DP_DOW = ['L','M','M','G','V','S','D'], DP_MESE = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+function dpFull(v){ return dayLabel(v)+' '+pYmd(v).getFullYear(); }
+function dateField(id, label, v){
+  return '<div class="field"><span class="lbl" id="'+id+'L">'+label+'</span><button type="button" class="dpick'+(v?'':' empty')+'" id="'+id+'" aria-labelledby="'+id+'L '+id+'">'+ICON.cal+'<span>'+(v ? esc(dpFull(v)) : 'Tocca per scegliere il giorno')+'</span></button></div>';
+}
+function datePick(cur, min, onPick){
+  var base = pYmd(cur || min || fYmd(new Date())), Y = base.getFullYear(), M = base.getMonth(), today = fYmd(new Date());
+  var minM = pYmd(min).getFullYear()*12 + pYmd(min).getMonth();
+  var s = sheet('<div class="dpn"><button type="button" class="btn alt sm" id="dpPrev" aria-label="Mese precedente">‹</button><h3 id="dpT"></h3><button type="button" class="btn alt sm" id="dpNext" aria-label="Mese successivo">›</button></div><div class="dpg" id="dpG"></div><div class="dpf"><button type="button" class="btn alt" id="dpX">Chiudi</button></div>');
+  function draw(){
+    var first = new Date(Y, M, 1), lead = (first.getDay()+6)%7, n = new Date(Y, M+1, 0).getDate(), h = '', i;
+    $('dpT').textContent = DP_MESE[M]+' '+Y;
+    for(i=0;i<7;i++) h += '<span class="dh">'+DP_DOW[i]+'</span>';
+    for(i=0;i<lead;i++) h += '<span></span>';
+    for(i=1;i<=n;i++){ var ds = fYmd(new Date(Y, M, i)); h += '<button type="button" data-dp="'+ds+'"'+(ds<min?' disabled':'')+' class="'+(ds===cur?'sel ':'')+(ds===today?'today':'')+'" aria-label="'+esc(dpFull(ds))+'">'+i+'</button>'; }
+    $('dpG').innerHTML = h;
+    $('dpPrev').disabled = (Y*12+M) <= minM;
+    [].forEach.call($('dpG').querySelectorAll('[data-dp]'), function(x){ x.onclick = function(){ var v = x.dataset.dp; s.close(); onPick(v); }; });
+  }
+  $('dpPrev').onclick = function(){ M--; if(M<0){ M = 11; Y--; } draw(); };
+  $('dpNext').onclick = function(){ M++; if(M>11){ M = 0; Y++; } draw(); };
+  $('dpX').onclick = s.close;
+  draw();
+}
 function permHtml(){
   var P = S.perm, h = '<div class="p2">', PK = permKinds();
   if(P.k && PK.indexOf(P.k)<0) P.k = '';
@@ -721,11 +746,11 @@ function permHtml(){
   if(P.mode==='week'){
     h += permWeekHtml(P, PK);
   } else if(P.mode==='day'){
-    h += '<div class="field"><label for="pD">Giorno</label><input type="date" id="pD" min="'+fYmd(new Date())+'" value="'+esc(P.d)+'"></div>'+
+    h += dateField('pD','Giorno',P.d)+
       '<div class="field"><span class="lbl">Durata</span><div class="seg"><div class="grp"><button type="button" id="pwWhole" aria-pressed="'+P.whole+'">Giornata intera</button><button type="button" id="pwHrs" aria-pressed="'+(!P.whole)+'">Orario</button></div></div></div>';
     if(!P.whole) h += '<div class="field"><div class="hours"><div class="field"><label for="pH1">Dalle</label><input type="time" id="pH1" value="'+esc(P.h1)+'"></div><div class="field"><label for="pH2">Alle</label><input type="time" id="pH2" value="'+esc(P.h2)+'"></div></div></div>';
   } else {
-    h += '<div class="hours"><div class="field"><label for="pD">Dal giorno</label><input type="date" id="pD" min="'+fYmd(new Date())+'" value="'+esc(P.d)+'"></div><div class="field"><label for="pD2">Al giorno</label><input type="date" id="pD2" min="'+esc(P.d||fYmd(new Date()))+'" value="'+esc(P.d2)+'"></div></div>'+
+    h += '<div class="hours">'+dateField('pD','Dal giorno',P.d)+dateField('pD2','Al giorno',P.d2)+'</div>'+
       '<div class="note">Giornate intere'+(KINDS[P.k] && KINDS[P.k].nowe ? ', sabato e domenica esclusi (per quei giorni usa "Un giorno").' : ', sabato e domenica compresi.')+'</div>';
   }
   h += '<div class="sum" id="pSum">'+esc(permSummary(P))+'</div><div class="err" id="pErr">'+esc(P.err)+'</div></div></div>';
@@ -791,8 +816,8 @@ function bindPerm(){
   }; });
   if((b=$('pwWhole'))) b.onclick = function(){ P.whole=true; P.err=''; render(); };
   if((b=$('pwHrs'))) b.onclick = function(){ P.whole=false; P.err=''; render(); };
-  if((b=$('pD'))) b.onchange = function(){ P.d=this.value; if(P.mode==='period' && P.d2 && P.d2<P.d) P.d2=''; if(P.mode==='period') render(); else upd(); };
-  if((b=$('pD2'))) b.onchange = function(){ P.d2=this.value; upd(); };
+  if((b=$('pD'))) b.onclick = function(){ datePick(P.d, fYmd(new Date()), function(v){ P.d = v; if(P.d2 && P.d2<v) P.d2 = ''; P.err = ''; render(); }); };
+  if((b=$('pD2'))) b.onclick = function(){ datePick(P.d2 || P.d, P.d || fYmd(new Date()), function(v){ P.d2 = v; P.err = ''; render(); }); };
   if((b=$('pH1'))) b.onchange = function(){ P.h1=this.value; upd(); };
   if((b=$('pH2'))) b.onchange = function(){ P.h2=this.value; upd(); };
   if((b=$('pNote'))) b.oninput = function(){ P.note = this.value; };
@@ -1165,12 +1190,46 @@ function reqCard(p, pending){
   }
   return h+'</div>';
 }
+/* filtri elenco richieste: nominativo, settimana (sui giorni richiesti), stato */
+function monOfY(y){ var d = pYmd(y); return fYmd(addD(d, -((d.getDay()+6)%7))); }
+function nextMonY(){ var t = new Date(); t.setHours(0,0,0,0); return fYmd(addD(pYmd(monOfY(fYmd(t))), 7)); }
+function wkRange(m){ var a = pYmd(m), b = addD(a,6); return a.getDate()+(a.getMonth()!==b.getMonth()?' '+MESI[a.getMonth()]:'')+' – '+b.getDate()+' '+MESI[b.getMonth()]+' '+b.getFullYear(); }
+function admWk(){ var F = S.adm; return F.wkTouched ? (F.wk || 'all') : (F.tab==='todo' ? 'all' : nextMonY()); }
+function reqMatch(p, who, wk, st){
+  if(who && p.staff_id!==who) return false;
+  if(st && st!=='all' && p.status!==st) return false;
+  if(wk && wk!=='all'){ var e = fYmd(addD(pYmd(wk),6)); if(!(p.items||[]).some(function(i){ return i.d>=wk && i.d<=e; })) return false; }
+  return true;
+}
+function reqWeekList(list, sel){
+  var cur = monOfY(fYmd(new Date())), nxt = nextMonY(), lo = cur, hi = nxt;
+  list.forEach(function(p){ (p.items||[]).forEach(function(i){ var m = monOfY(i.d); if(m<lo) lo = m; if(m>hi) hi = m; }); });
+  if(sel && sel!=='all'){ if(sel<lo) lo = sel; if(sel>hi) hi = sel; }
+  var out = [], d = pYmd(lo), end = pYmd(hi);
+  while(d<=end){ out.push(fYmd(d)); d = addD(d,7); }
+  return {weeks:out, cur:cur, nxt:nxt};
+}
+function reqFilterHtml(base, wk, shown){
+  var F = S.adm, wl = reqWeekList(base, wk), me = S.me.id;
+  var who = S.dir.slice().sort(function(a,b){ return a.name.localeCompare(b.name,'it'); });
+  var h = '<div class="rfilt"><label>Persona<select id="rfWho"><option value="">Tutte le persone</option>'+who.map(function(p){ return '<option value="'+esc(p.id)+'"'+(F.who===p.id?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('')+'</select></label>'+
+    '<label class="rfwk">Settimana<div class="rfw"><button class="ic" id="rfPrev" aria-label="Settimana precedente">‹</button><select id="rfWk"><option value="all"'+(wk==='all'?' selected':'')+'>Tutte le settimane</option>'+wl.weeks.map(function(m){ return '<option value="'+m+'"'+(wk===m?' selected':'')+'>'+wkRange(m)+(m===wl.cur?' · questa':m===wl.nxt?' · prossima':'')+'</option>'; }).join('')+'</select><button class="ic" id="rfNext" aria-label="Settimana successiva">›</button></div></label>';
+  if(F.tab==='done') h += '<label>Stato<select id="rfSt"><option value="all"'+(!F.st||F.st==='all'?' selected':'')+'>Tutte</option><option value="approved"'+(F.st==='approved'?' selected':'')+'>Accettate</option><option value="denied"'+(F.st==='denied'?' selected':'')+'>Non accettate</option></select></label>';
+  h += '</div><div class="note rfcount">'+shown+(shown===1?' richiesta':' richieste')+((F.who||wk!=='all'||(F.st&&F.st!=='all'))?' con questi filtri · <button class="linkbtn" id="rfReset">Mostra tutto</button>':'')+'</div>';
+  return h;
+}
 function reqHtml(){
-  var meId = S.me.id, todo = S.props.filter(function(p){ return p.status==='pending' && p.staff_id!==meId; });
-  var done = S.props.filter(function(p){ return p.status!=='pending' && p.staff_id!==meId; }).slice(0,40);
-  var h = '<div class="tabs2"><button id="rtTodo" aria-pressed="'+(S.adm.tab==='todo')+'">Da decidere ('+todo.length+')</button><button id="rtDone" aria-pressed="'+(S.adm.tab==='done')+'">Già decise</button></div>';
-  var list = S.adm.tab==='todo' ? todo : done;
-  h += '<div class="card">'+(list.length ? list.map(function(p){ return reqCard(p, S.adm.tab==='todo'); }).join('') : '<div class="empty">'+(S.adm.tab==='todo'?'Nessuna richiesta in attesa.':'Ancora nessuna richiesta decisa.')+'</div>')+'</div>';
+  var meId = S.me.id, F = S.adm, wk = admWk();
+  var todo = S.props.filter(function(p){ return p.status==='pending' && p.staff_id!==meId; });
+  var done = S.props.filter(function(p){ return p.status!=='pending' && p.staff_id!==meId; });
+  var base = F.tab==='todo' ? todo : done;
+  var list = base.filter(function(p){ return reqMatch(p, F.who, wk, F.tab==='done' ? F.st : ''); });
+  var cap = 60, more = list.length>cap; if(more) list = list.slice(0,cap);
+  var h = '<div class="tabs2"><button id="rtTodo" aria-pressed="'+(F.tab==='todo')+'">Da decidere ('+todo.length+')</button><button id="rtDone" aria-pressed="'+(F.tab==='done')+'">Già decise</button></div>';
+  h += reqFilterHtml(base, wk, list.length);
+  var empty = (F.who || wk!=='all' || (F.tab==='done' && F.st && F.st!=='all')) ? 'Nessuna richiesta con questi filtri.' : (F.tab==='todo' ? 'Nessuna richiesta in attesa.' : 'Ancora nessuna richiesta decisa.');
+  h += '<div class="card">'+(list.length ? list.map(function(p){ return reqCard(p, F.tab==='todo'); }).join('') : '<div class="empty">'+empty+'</div>')+'</div>';
+  if(more) h += '<div class="note">Mostro le prime '+cap+': restringi con i filtri per vedere le altre.</div>';
   h += '<div class="note">Quando accetti, i giorni compaiono subito nel calendario di tutti. Finché non decidi, nessuno vede le richieste degli altri.</div>';
   return h;
 }
@@ -1187,8 +1246,24 @@ function decide(id, status){
 }
 function bindReq(){
   var b;
-  if((b=$('rtTodo'))) b.onclick = function(){ S.adm.tab='todo'; render(); };
-  if((b=$('rtDone'))) b.onclick = function(){ S.adm.tab='done'; render(); };
+  if((b=$('rtTodo'))) b.onclick = function(){ S.adm.tab='todo'; S.adm.wkTouched = false; render(); };
+  if((b=$('rtDone'))) b.onclick = function(){ S.adm.tab='done'; S.adm.wkTouched = false; render(); };
+  if((b=$('rfWho'))) b.onchange = function(){ S.adm.who = this.value; render(); };
+  if((b=$('rfSt'))) b.onchange = function(){ S.adm.st = this.value; render(); };
+  if((b=$('rfWk'))) b.onchange = function(){ S.adm.wkTouched = true; S.adm.wk = this.value; render(); };
+  function stepWk(dir){
+    var sel = $('rfWk'); if(!sel) return; var vals = [].slice.call(sel.options).map(function(o){ return o.value; }).filter(function(v){ return v!=='all'; });
+    var cur = admWk(), i = vals.indexOf(cur);
+    S.adm.wkTouched = true;
+    if(i<0){ S.adm.wk = nextMonY(); }
+    else if(vals[i+dir]) S.adm.wk = vals[i+dir];
+    else if(dir>0) S.adm.wk = fYmd(addD(pYmd(cur),7));
+    else S.adm.wk = fYmd(addD(pYmd(cur),-7));
+    render();
+  }
+  if((b=$('rfPrev'))) b.onclick = function(){ stepWk(-1); };
+  if((b=$('rfNext'))) b.onclick = function(){ stepWk(1); };
+  if((b=$('rfReset'))) b.onclick = function(){ S.adm.who = ''; S.adm.st = 'all'; S.adm.wkTouched = true; S.adm.wk = 'all'; render(); };
   document.querySelectorAll('[data-ok]').forEach(function(x){ x.onclick = function(){ if(!S.adm.busy) decide(x.dataset.ok,'approved'); }; });
   document.querySelectorAll('[data-no]').forEach(function(x){ x.onclick = function(){ if(!S.adm.busy) decide(x.dataset.no,'denied'); }; });
   document.querySelectorAll('[data-back]').forEach(function(x){ x.onclick = function(){ if(!S.adm.busy) decide(x.dataset.back,'pending'); }; });
@@ -1601,7 +1676,7 @@ function bindPlan(){
 /* =====================================================================
    Solventi AG (profilo aggiuntivo): assegnazione di secondo e terzo operatore, storico e riepilogo dell'anno solare
    ===================================================================== */
-var APP_VERSION = '2026.11.28';
+var APP_VERSION = 'v2.29';
 var MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function solvOn(ds){ return S.solv.rows.filter(function(x){ return x.day===ds; })[0] || null; }
 function pct1(x){ return (Math.round(x*10)/10).toFixed(1).replace('.',','); }
